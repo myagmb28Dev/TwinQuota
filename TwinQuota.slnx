@@ -1,0 +1,5 @@
+<Solution>
+  <Project Path="src/TwinQuota.Core/TwinQuota.Core.csproj" />
+  <Project Path="src/TwinQuota.Windows/TwinQuota.Windows.csproj" />
+  <Project Path="tests/TwinQuota.Core.Tests/TwinQuota.Core.Tests.csproj" />
+</Solution>
