@@ -1,5 +1,7 @@
 # TwinQuota
 
+[![CI](https://github.com/myagmb28Dev/TwinQuota/actions/workflows/ci.yml/badge.svg)](https://github.com/myagmb28Dev/TwinQuota/actions/workflows/ci.yml)
+
 TwinQuota is a small Windows tray app for monitoring model quota usage across
 Google Antigravity 2.0, Antigravity IDE, and Antigravity CLI.
 
