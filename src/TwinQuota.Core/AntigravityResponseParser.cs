@@ -96,6 +96,21 @@ public static class AntigravityResponseParser
             .ToArray();
     }
 
+    public static ModelAvailability? ParseActiveModel(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetResponse(document.RootElement, out var response)
+            || GetString(response, "defaultAgentModelId") is not { Length: > 0 } activeModelId
+            || !response.TryGetProperty("models", out var modelsElement)
+            || modelsElement.ValueKind != JsonValueKind.Object
+            || !modelsElement.TryGetProperty(activeModelId, out var model))
+        {
+            return null;
+        }
+
+        return ParseModel(activeModelId, model);
+    }
+
     public static IReadOnlyList<ModelAvailability> ParseCliModels(string output)
     {
         if (string.IsNullOrWhiteSpace(output))
@@ -179,6 +194,31 @@ public static class AntigravityResponseParser
         }
 
         return ids;
+    }
+
+    private static ModelAvailability? ParseModel(string id, JsonElement model)
+    {
+        var displayName = GetString(model, "displayName");
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return null;
+        }
+
+        var provider = NormalizeProvider(GetString(model, "modelProvider"));
+        double? remaining = null;
+        DateTimeOffset? resetTime = null;
+        if (model.TryGetProperty("quotaInfo", out var quotaInfo))
+        {
+            remaining = GetDouble(quotaInfo, "remainingFraction");
+            resetTime = GetDateTimeOffset(quotaInfo, "resetTime");
+        }
+
+        return new ModelAvailability(
+            id,
+            displayName,
+            provider,
+            remaining is null ? null : Math.Clamp(remaining.Value, 0, 1),
+            resetTime);
     }
 
     private static void CollectCliModels(JsonElement element, List<ModelAvailability> results)

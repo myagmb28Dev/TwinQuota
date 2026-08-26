@@ -12,11 +12,10 @@ enough for live quota and model discovery.
 ## Features
 
 - Detects Antigravity 2.0, Antigravity IDE, and Antigravity CLI independently.
-- Shows live weekly and five-hour quota windows.
-- Discovers the account's currently available agent models instead of shipping
-  a stale hard-coded list.
-- Includes Gemini, Claude, and GPT-OSS models when the signed-in Antigravity
-  account exposes them.
+- Shows the currently active agent model reported by Antigravity.
+- Shows only the weekly and five-hour quota windows associated with that active
+  model's provider.
+- Uses a compact window instead of listing every account-available model.
 - Keeps the latest successful snapshot available while Antigravity is closed.
 - Lives in the Windows notification area and refreshes every minute.
 - Never reads or persists Google OAuth credentials.
@@ -55,7 +54,9 @@ zip archive under `artifacts\win-x64`.
 2. Read the server's localhost HTTP port from its own log.
 3. Read the short-lived local CSRF value from the running process command line.
 4. Call `RetrieveUserQuotaSummary` and `GetAvailableModels` on `127.0.0.1`.
-5. Discard the CSRF value and cache only display-safe quota/model data.
+5. Resolve the active model from `defaultAgentModelId` and discard unrelated
+   model and quota groups.
+6. Discard the CSRF value and cache only display-safe quota/model data.
 
 No request is sent directly to Google's private backend, and no OAuth token,
 cookie, prompt, conversation, or source file is read. See

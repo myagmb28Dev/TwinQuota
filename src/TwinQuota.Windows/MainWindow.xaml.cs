@@ -16,9 +16,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly TwinQuotaMonitor _monitor = new();
     private readonly DispatcherTimer _refreshTimer;
     private bool _refreshing;
-    private string _updatedText = "Not refreshed yet";
-    private string _message = "Looking for Antigravity…";
+    private string _surfaceText = "Antigravity";
+    private string _updatedText = "Not refreshed";
+    private string _message = "Looking for an active Antigravity model…";
     private string _liveStatusText = "Checking";
+    private string _activeModelName = "Checking…";
+    private string _activeModelId = "Waiting for Antigravity";
+    private string _activeModelProvider = "Unknown";
     private MediaBrush _liveBadgeForeground = BrushFrom("#FFBF69");
     private MediaBrush _liveBadgeBackground = BrushFrom("#3B2D1D");
 
@@ -35,9 +39,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         };
     }
 
-    public ObservableCollection<ProductRow> Products { get; } = [];
     public ObservableCollection<QuotaRow> Quotas { get; } = [];
-    public ObservableCollection<ModelRow> Models { get; } = [];
+
+    public string SurfaceText
+    {
+        get => _surfaceText;
+        private set => SetField(ref _surfaceText, value);
+    }
 
     public string UpdatedText
     {
@@ -57,6 +65,24 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _liveStatusText, value);
     }
 
+    public string ActiveModelName
+    {
+        get => _activeModelName;
+        private set => SetField(ref _activeModelName, value);
+    }
+
+    public string ActiveModelId
+    {
+        get => _activeModelId;
+        private set => SetField(ref _activeModelId, value);
+    }
+
+    public string ActiveModelProvider
+    {
+        get => _activeModelProvider;
+        private set => SetField(ref _activeModelProvider, value);
+    }
+
     public MediaBrush LiveBadgeForeground
     {
         get => _liveBadgeForeground;
@@ -69,7 +95,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _liveBadgeBackground, value);
     }
 
-    public string ModelCountText => Models.Count == 1 ? "1 model" : $"{Models.Count} models";
+    public string QuotaCountText => Quotas.Count == 0
+        ? "No quota"
+        : Quotas.Count == 1
+            ? "1 window"
+            : $"{Quotas.Count} windows";
 
     public event PropertyChangedEventHandler? PropertyChanged;
     public event EventHandler<string>? StatusTextChanged;
@@ -83,7 +113,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _refreshing = true;
         RefreshButton.IsEnabled = false;
-        RefreshButton.Content = "Refreshing…";
+        RefreshButton.Content = "…";
         try
         {
             var snapshot = await _monitor.RefreshAsync();
@@ -100,68 +130,78 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             _refreshing = false;
             RefreshButton.IsEnabled = true;
-            RefreshButton.Content = "Refresh";
+            RefreshButton.Content = "↻";
         }
     }
 
     private void ApplySnapshot(TwinQuotaSnapshot snapshot)
     {
-        Products.Clear();
-        foreach (var product in snapshot.Products)
+        var activeModel = snapshot.Models.Count == 1 ? snapshot.Models[0] : null;
+        if (activeModel is null)
         {
-            Products.Add(new ProductRow(
-                product.DisplayName,
-                string.IsNullOrWhiteSpace(product.Version) ? "Version unknown" : $"v{product.Version}",
-                product.Detail,
-                product.Running ? BrushFrom("#38D6A2") : product.Installed ? BrushFrom("#FFBF69") : BrushFrom("#66718C")));
+            ActiveModelName = "No active model reported";
+            ActiveModelId = "Start an Antigravity session and refresh";
+            ActiveModelProvider = "Unavailable";
+        }
+        else
+        {
+            ActiveModelName = activeModel.DisplayName;
+            ActiveModelId = activeModel.Id;
+            ActiveModelProvider = activeModel.Provider;
         }
 
         Quotas.Clear();
-        foreach (var group in snapshot.QuotaGroups)
+        var selectedGroups = ActiveQuotaSelector.Select(snapshot.QuotaGroups, activeModel);
+        var selectedBuckets = selectedGroups
+            .SelectMany(group => group.Buckets.Select(bucket => (Group: group, Bucket: bucket)))
+            .OrderBy(item => QuotaWindowOrder(item.Bucket))
+            .ThenBy(item => item.Bucket.DisplayName, StringComparer.OrdinalIgnoreCase);
+        foreach (var item in selectedBuckets)
         {
-            foreach (var bucket in group.Buckets)
-            {
-                var percent = bucket.RemainingFraction * 100;
-                Quotas.Add(new QuotaRow(
-                    group.DisplayName,
-                    bucket.DisplayName,
-                    percent,
-                    $"{percent:0.#}%",
-                    FormatReset(bucket.ResetTime),
-                    QuotaBrush(percent)));
-            }
+            var percent = item.Bucket.RemainingFraction * 100;
+            Quotas.Add(new QuotaRow(
+                item.Group.DisplayName,
+                item.Bucket.DisplayName,
+                percent,
+                $"{percent:0.#}%",
+                FormatReset(item.Bucket.ResetTime),
+                QuotaBrush(percent)));
         }
 
-        Models.Clear();
-        foreach (var model in snapshot.Models)
-        {
-            var percent = model.RemainingFraction is null ? (double?)null : model.RemainingFraction.Value * 100;
-            Models.Add(new ModelRow(
-                model.Id,
-                model.DisplayName,
-                model.Provider,
-                percent is null ? "Available" : $"{percent:0.#}%",
-                FormatReset(model.ResetTime),
-                percent is null ? BrushFrom("#C9C2FF") : QuotaBrush(percent.Value)));
-        }
-
-        OnPropertyChanged(nameof(ModelCountText));
+        OnPropertyChanged(nameof(QuotaCountText));
+        SurfaceText = snapshot.Source
+            ?? snapshot.Products.FirstOrDefault(product => product.Running)?.DisplayName
+            ?? "Antigravity";
         UpdatedText = snapshot.IsLive
-            ? $"Live · {snapshot.UpdatedAt.LocalDateTime:t} · {snapshot.Source}"
-            : $"Cached · {snapshot.UpdatedAt.LocalDateTime:g}";
+            ? $"Live · {snapshot.UpdatedAt.LocalDateTime:t}"
+            : $"Cached · {snapshot.UpdatedAt.LocalDateTime:t}";
         Message = snapshot.Message ?? string.Empty;
         LiveStatusText = snapshot.IsLive ? "Live" : "Cached / offline";
         LiveBadgeForeground = snapshot.IsLive ? BrushFrom("#38D6A2") : BrushFrom("#FFBF69");
         LiveBadgeBackground = snapshot.IsLive ? BrushFrom("#17392F") : BrushFrom("#3B2D1D");
 
         var firstQuota = Quotas.FirstOrDefault();
-        var trayStatus = firstQuota is null
+        var trayStatus = activeModel is null
             ? $"TwinQuota · {LiveStatusText}"
-            : $"TwinQuota · {firstQuota.GroupName} {firstQuota.RemainingText}";
+            : firstQuota is null
+                ? $"TwinQuota · {activeModel.DisplayName}"
+                : $"TwinQuota · {activeModel.DisplayName} {firstQuota.RemainingText}";
         StatusTextChanged?.Invoke(this, trayStatus);
     }
 
     private async void RefreshButton_Click(object sender, RoutedEventArgs e) => await RefreshAsync();
+
+    private static int QuotaWindowOrder(QuotaBucket bucket)
+    {
+        var identity = $"{bucket.DisplayName} {bucket.Window}";
+        if (identity.Contains("5", StringComparison.OrdinalIgnoreCase)
+            && identity.Contains("h", StringComparison.OrdinalIgnoreCase))
+        {
+            return 0;
+        }
+
+        return identity.Contains("week", StringComparison.OrdinalIgnoreCase) ? 1 : 2;
+    }
 
     private static string FormatReset(DateTimeOffset? resetTime)
     {
@@ -209,7 +249,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-    public sealed record ProductRow(string DisplayName, string VersionText, string Detail, MediaBrush StatusBrush);
     public sealed record QuotaRow(
         string GroupName,
         string WindowName,
@@ -217,11 +256,4 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         string RemainingText,
         string ResetText,
         MediaBrush ProgressBrush);
-    public sealed record ModelRow(
-        string Id,
-        string DisplayName,
-        string Provider,
-        string RemainingText,
-        string ResetText,
-        MediaBrush RemainingBrush);
 }

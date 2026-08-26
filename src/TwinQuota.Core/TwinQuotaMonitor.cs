@@ -36,7 +36,8 @@ public sealed class TwinQuotaMonitor
                 var modelsTask = _rpcClient.GetAvailableModelsAsync(endpoint, cancellationToken);
                 await Task.WhenAll(quotaTask, modelsTask).ConfigureAwait(false);
                 var quotaGroups = AntigravityResponseParser.ParseQuotaSummary(await quotaTask.ConfigureAwait(false));
-                var models = AntigravityResponseParser.ParseAvailableModels(await modelsTask.ConfigureAwait(false));
+                var activeModel = AntigravityResponseParser.ParseActiveModel(await modelsTask.ConfigureAwait(false));
+                IReadOnlyList<ModelAvailability> models = activeModel is null ? [] : [activeModel];
                 var snapshot = new TwinQuotaSnapshot(
                     DateTimeOffset.Now,
                     true,
@@ -62,16 +63,14 @@ public sealed class TwinQuotaMonitor
                 var cliModels = await _cliClient.ReadModelsAsync(cli.ExecutablePath, cancellationToken).ConfigureAwait(false);
                 if (cliModels.Count > 0)
                 {
-                    var snapshot = new TwinQuotaSnapshot(
+                    return new TwinQuotaSnapshot(
                         DateTimeOffset.Now,
                         true,
                         "Antigravity CLI",
                         products,
                         [],
-                        cliModels,
-                        "Model list from agy; start an Antigravity surface for quota details");
-                    await _cache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
-                    return snapshot;
+                        [],
+                        "Antigravity CLI is available, but it did not report an active model. Start a session for active-model quota details.");
                 }
             }
             catch (Exception exception) when (exception is IOException or TaskCanceledException or InvalidOperationException)
@@ -83,10 +82,13 @@ public sealed class TwinQuotaMonitor
         var cached = await _cache.LoadAsync(cancellationToken).ConfigureAwait(false);
         if (cached is not null)
         {
+            var cachedModels = cached.Models.Count == 1 ? cached.Models : [];
             return cached with
             {
                 IsLive = false,
                 Products = products,
+                Models = cachedModels,
+                QuotaGroups = cachedModels.Count == 1 ? cached.QuotaGroups : [],
                 Message = "Showing the last successful snapshot. Start Antigravity and refresh for live data."
             };
         }

@@ -96,6 +96,51 @@ public sealed class AntigravityResponseParserTests
     }
 
     [Fact]
+    public void ParsesOnlyTheDefaultActiveAgentModel()
+    {
+        const string json = """
+            {
+              "response": {
+                "defaultAgentModelId": "claude-sonnet-4-6",
+                "models": {
+                  "gemini-3.7-flash-high": {
+                    "displayName": "Gemini 3.7 Flash (High)",
+                    "modelProvider": "MODEL_PROVIDER_GOOGLE"
+                  },
+                  "claude-sonnet-4-6": {
+                    "displayName": "Claude Sonnet 4.6 (Thinking)",
+                    "modelProvider": "MODEL_PROVIDER_ANTHROPIC",
+                    "quotaInfo": { "remainingFraction": 0.42, "resetTime": "2026-08-26T15:43:33Z" }
+                  }
+                }
+              }
+            }
+            """;
+
+        var model = AntigravityResponseParser.ParseActiveModel(json);
+
+        Assert.NotNull(model);
+        Assert.Equal("claude-sonnet-4-6", model.Id);
+        Assert.Equal("Anthropic", model.Provider);
+        Assert.Equal(0.42, model.RemainingFraction);
+    }
+
+    [Fact]
+    public void ReturnsNoActiveModelWhenTheServerDoesNotReportADefault()
+    {
+        const string json = """
+            { "response": { "models": {
+              "gemini-3.7-flash-high": {
+                "displayName": "Gemini 3.7 Flash (High)",
+                "modelProvider": "MODEL_PROVIDER_GOOGLE"
+              }
+            } } }
+            """;
+
+        Assert.Null(AntigravityResponseParser.ParseActiveModel(json));
+    }
+
+    [Fact]
     public void ParsesCliJsonAndLegacyTextLists()
     {
         const string json = """
