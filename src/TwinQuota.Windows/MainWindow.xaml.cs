@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -152,6 +153,30 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public ObservableCollection<QuotaRow> Quotas { get; } = [];
     public ObservableCollection<ModelRow> AvailableModels { get; } = [];
+
+    public string AppVersionText
+    {
+        get
+        {
+            var informationalVersion = typeof(MainWindow).Assembly
+                .GetCustomAttribute<AssemblyInformationalVersionAttribute>()
+                ?.InformationalVersion;
+
+            if (!string.IsNullOrWhiteSpace(informationalVersion))
+            {
+                var cleanVersion = informationalVersion.Split('+')[0];
+                return $"v{cleanVersion}";
+            }
+
+            var version = typeof(MainWindow).Assembly.GetName().Version;
+            if (version != null)
+            {
+                return $"v{version.Major}.{version.Minor}.{version.Build}";
+            }
+
+            return "v0.1.0";
+        }
+    }
 
     internal bool ShouldShowOnStartup =>
         !_savedShowOnlyWhenAntigravityWindowIsOpen || _hasAntigravityWindow;

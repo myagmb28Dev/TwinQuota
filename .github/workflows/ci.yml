@@ -6,7 +6,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -14,13 +14,15 @@ concurrency:
 
 jobs:
   build-test-package:
-    name: Build, test, and package
+    name: Build, test, package, and release
     runs-on: windows-latest
     timeout-minutes: 20
 
     steps:
       - name: Check out source
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up .NET 10
         uses: actions/setup-dotnet@v4
@@ -43,10 +45,47 @@ jobs:
         shell: pwsh
         run: .\scripts\publish.ps1
 
-      - name: Upload Windows package
+      - name: Upload Windows package artifact
         uses: actions/upload-artifact@v4
         with:
           name: TwinQuota-win-x64
           path: artifacts/win-x64/TwinQuota-win-x64.zip
           if-no-files-found: error
           retention-days: 14
+
+      - name: Extract project version
+        id: project_version
+        shell: pwsh
+        run: |
+          $rawVersion = (dotnet msbuild .\src\TwinQuota.Windows\TwinQuota.Windows.csproj -getProperty:Version).Trim()
+          if ([string]::IsNullOrWhiteSpace($rawVersion)) {
+            $rawVersion = "0.1.0"
+          }
+          Write-Host "Resolved project version: $rawVersion"
+          "version=$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=v$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Create or update GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.project_version.outputs.tag }}
+          RELEASE_TITLE: TwinQuota ${{ steps.project_version.outputs.tag }}
+          ZIP_PATH: artifacts/win-x64/TwinQuota-win-x64.zip
+        run: |
+          Write-Host "Target release tag: $env:RELEASE_TAG"
+          $releaseJson = $null
+          try {
+            $releaseJson = gh release view $env:RELEASE_TAG --json tagName 2>$null
+          } catch {
+            $releaseJson = $null
+          }
+
+          if ($LASTEXITCODE -eq 0 -and $releaseJson) {
+            Write-Host "Release $env:RELEASE_TAG exists. Updating release asset..."
+            gh release upload $env:RELEASE_TAG $env:ZIP_PATH --clobber
+          } else {
+            Write-Host "Creating new GitHub Release $env:RELEASE_TAG..."
+            gh release create $env:RELEASE_TAG $env:ZIP_PATH --title "$env:RELEASE_TITLE" --generate-notes
+          }
+
