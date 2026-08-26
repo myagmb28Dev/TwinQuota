@@ -268,7 +268,7 @@
                                            FontSize="15"
                                            FontWeight="SemiBold"
                                            VerticalAlignment="Center" />
-                                <TextBlock Text="v0.1"
+                                <TextBlock Text="{Binding AppVersionText}"
                                            Foreground="{StaticResource MutedBrush}"
                                            FontSize="10"
                                            Margin="5,2,0,0"
