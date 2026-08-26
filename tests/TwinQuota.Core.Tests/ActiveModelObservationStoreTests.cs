@@ -23,6 +23,7 @@ public sealed class ActiveModelObservationStoreTests
         Assert.NotNull(observation);
         Assert.Equal("gemini-3.7-flash-medium", observation.ModelId);
         Assert.Equal(observedAt, observation.ObservedAt);
+        Assert.Equal("conversation-123", observation.ConversationId);
     }
 
     [Theory]
