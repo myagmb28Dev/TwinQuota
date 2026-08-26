@@ -45,6 +45,10 @@ public sealed class TwinQuotaMonitor
                 var models = modelResolution.Models;
                 var activeModel = modelResolution.ActiveModel;
 
+                var contextUsage = ContextUsageCalculator.Calculate(
+                    observedModel?.ConversationId,
+                    activeModel?.Id ?? observedModel?.ModelId);
+
                 var snapshot = new TwinQuotaSnapshot(
                     DateTimeOffset.Now,
                     true,
@@ -54,7 +58,8 @@ public sealed class TwinQuotaMonitor
                     models,
                     null)
                 {
-                    ActiveModelId = activeModel?.Id
+                    ActiveModelId = activeModel?.Id,
+                    ContextUsage = contextUsage
                 };
                 await _cache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
                 return snapshot;

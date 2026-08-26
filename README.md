@@ -15,6 +15,8 @@ enough for live quota and model discovery.
 - Shows the currently active agent model reported by Antigravity.
 - Shows only the weekly and five-hour quota windows associated with that active
   model's provider.
+- Shows an active-context gauge derived from the current local Antigravity
+  conversation transcript.
 - Uses a compact window instead of listing every account-available model.
 - Keeps the latest successful snapshot available while Antigravity is closed.
 - Lives in the Windows notification area and refreshes every 30 seconds.
@@ -79,12 +81,15 @@ zip archive under `artifacts\win-x64`.
 3. Read the short-lived local CSRF value from the running process command line.
 4. Call `RetrieveUserQuotaSummary` and `GetAvailableModels` on `127.0.0.1`.
 5. Register a namespaced Antigravity `PreInvocation` hook that records only the
-   actually invoked `modelName` and observation time.
+   actually invoked `modelName`, conversation ID, and observation time.
 6. Prefer that invoked model over `defaultAgentModelId`, then discard unrelated
    model and quota groups.
-7. Discard the CSRF value and cache only display-safe quota/model data.
+7. Read the active conversation's local transcript to estimate context usage;
+   transcript content and paths are not persisted.
+8. Discard the CSRF value and cache only display-safe quota/model data and the
+   derived context estimate.
 
 No request is sent directly to Google's private backend, and no OAuth token,
-cookie, prompt, transcript, workspace path, or source file is persisted. See
+cookie, prompt, transcript content or path, workspace path, or source file is persisted. See
 [`docs/antigravity-detection.md`](docs/antigravity-detection.md) for the
 validation notes and fallback behavior.

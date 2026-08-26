@@ -293,11 +293,79 @@
                                   PanningMode="VerticalOnly"
                                   ScrollChanged="ScrollViewer_ScrollChanged">
                         <StackPanel Margin="17,10,17,10">
-                            <TextBlock Text="{Binding ActiveModelName}"
-                                       FontSize="17"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       Margin="0,0,0,8" />
+                            <Grid Margin="0,0,0,8">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding ActiveModelName}"
+                                           FontSize="17"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap"
+                                           VerticalAlignment="Center" />
+                                <Grid Grid.Column="1"
+                                      Width="28"
+                                      Height="28"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Visibility="{Binding ContextGaugeVisibility}"
+                                      ToolTipService.InitialShowDelay="50"
+                                      ToolTipService.BetweenShowDelay="0"
+                                      ToolTipService.ShowDuration="12000"
+                                      Cursor="Help">
+                                    <Grid.ToolTip>
+                                        <ToolTip Background="#FFFFFF"
+                                                 Foreground="#0F172A"
+                                                 BorderBrush="#CBD5E1"
+                                                 BorderThickness="1"
+                                                 Padding="0"
+                                                 Placement="Mouse"
+                                                 HasDropShadow="True">
+                                            <ToolTip.Template>
+                                                <ControlTemplate TargetType="ToolTip">
+                                                    <Border Background="#FFFFFF"
+                                                            BorderBrush="#CBD5E1"
+                                                            BorderThickness="1"
+                                                            CornerRadius="8"
+                                                            Padding="10,7"
+                                                            SnapsToDevicePixels="True">
+                                                        <Border.Effect>
+                                                            <DropShadowEffect BlurRadius="12"
+                                                                              ShadowDepth="3"
+                                                                              Opacity="0.2"
+                                                                              Color="#000000" />
+                                                        </Border.Effect>
+                                                        <StackPanel>
+                                                            <TextBlock Text="{Binding ContextHoverHeader}"
+                                                                       FontWeight="Bold"
+                                                                       FontSize="12"
+                                                                       TextAlignment="Center"
+                                                                       Foreground="#0F172A" />
+                                                            <TextBlock Text="{Binding ContextHoverSubtext}"
+                                                                       FontSize="10"
+                                                                       Foreground="#64748B"
+                                                                       TextAlignment="Center"
+                                                                       Margin="0,2,0,0" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </ToolTip.Template>
+                                        </ToolTip>
+                                    </Grid.ToolTip>
+                                    <Ellipse Width="22"
+                                             Height="22"
+                                             Stroke="#232B42"
+                                             StrokeThickness="3"
+                                             Fill="Transparent" />
+                                    <Path Width="28"
+                                          Height="28"
+                                          Stroke="{Binding ContextGaugeBrush}"
+                                          StrokeThickness="3"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          Data="{Binding ContextArcGeometry}" />
+                                </Grid>
+                            </Grid>
                             <Border Height="1" Background="{StaticResource BorderBrush}" Margin="0,0,0,12" />
                             <ItemsControl ItemsSource="{Binding Quotas}"
                                           ItemTemplate="{StaticResource QuotaRowTemplate}" />

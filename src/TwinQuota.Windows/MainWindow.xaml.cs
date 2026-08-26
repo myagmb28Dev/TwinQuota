@@ -13,6 +13,8 @@ using TwinQuota.Core;
 using InputMouseEventArgs = System.Windows.Input.MouseEventArgs;
 using InputMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
 using MediaBrush = System.Windows.Media.Brush;
+using WindowsPoint = System.Windows.Point;
+using WindowsSize = System.Windows.Size;
 using WpfOrientation = System.Windows.Controls.Orientation;
 using WpfScrollBar = System.Windows.Controls.Primitives.ScrollBar;
 using WpfScrollChangedEventArgs = System.Windows.Controls.ScrollChangedEventArgs;
@@ -52,6 +54,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private Visibility _dashboardVisibility = Visibility.Visible;
     private Visibility _modelsVisibility = Visibility.Collapsed;
     private Visibility _settingsVisibility = Visibility.Collapsed;
+    private Visibility _contextGaugeVisibility = Visibility.Collapsed;
+    private Geometry? _contextArcGeometry;
+    private MediaBrush _contextGaugeBrush = BrushFrom("#8B7CFF");
+    private string _contextHoverHeader = "Context usage";
+    private string _contextHoverSubtext = string.Empty;
     private MediaBrush _homeTabBackground = BrushFrom("#29234F");
     private MediaBrush _modelsTabBackground = BrushFrom("#151B2E");
     private MediaBrush _settingsTabBackground = BrushFrom("#151B2E");
@@ -173,6 +180,36 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _settingsVisibility, value);
     }
 
+    public Visibility ContextGaugeVisibility
+    {
+        get => _contextGaugeVisibility;
+        private set => SetField(ref _contextGaugeVisibility, value);
+    }
+
+    public Geometry? ContextArcGeometry
+    {
+        get => _contextArcGeometry;
+        private set => SetField(ref _contextArcGeometry, value);
+    }
+
+    public MediaBrush ContextGaugeBrush
+    {
+        get => _contextGaugeBrush;
+        private set => SetField(ref _contextGaugeBrush, value);
+    }
+
+    public string ContextHoverHeader
+    {
+        get => _contextHoverHeader;
+        private set => SetField(ref _contextHoverHeader, value);
+    }
+
+    public string ContextHoverSubtext
+    {
+        get => _contextHoverSubtext;
+        private set => SetField(ref _contextHoverSubtext, value);
+    }
+
     public MediaBrush HomeTabBackground
     {
         get => _homeTabBackground;
@@ -280,6 +317,23 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 : null;
         ActiveModelName = activeModel?.DisplayName ?? "No active model";
         PopulateQuotas(Quotas, snapshot, activeModel);
+
+        var contextUsage = snapshot.ContextUsage;
+        if (contextUsage is not null)
+        {
+            ContextGaugeVisibility = Visibility.Visible;
+            var usedPercent = (int)Math.Round(contextUsage.UsedPercent, MidpointRounding.AwayFromZero);
+            var remainingPercent = Math.Max(0, 100 - usedPercent);
+            ContextHoverHeader = "Context length:";
+            ContextHoverSubtext = $"{usedPercent}% used ({remainingPercent}% left)\n{contextUsage.UsedK}/{contextUsage.MaxK} tokens used";
+            ContextGaugeBrush = ContextBrush(contextUsage.UsedPercent);
+            ContextArcGeometry = BuildArcGeometry(contextUsage.UsedPercent);
+        }
+        else
+        {
+            ContextGaugeVisibility = Visibility.Collapsed;
+            ContextArcGeometry = null;
+        }
 
         AvailableModels.Clear();
         foreach (var family in ModelFamilyGrouper.Group(snapshot.Models))
@@ -751,6 +805,57 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         < 35 => BrushFrom("#FFBF69"),
         _ => BrushFrom("#8B7CFF")
     };
+
+    private static MediaBrush ContextBrush(double percent) => percent switch
+    {
+        >= 85 => BrushFrom("#FF7B8B"),
+        >= 60 => BrushFrom("#FFBF69"),
+        _ => BrushFrom("#8B7CFF")
+    };
+
+    private static Geometry? BuildArcGeometry(double percent)
+    {
+        if (percent <= 0)
+        {
+            return null;
+        }
+
+        const double centerX = 14;
+        const double centerY = 14;
+        const double radius = 11;
+
+        if (percent >= 99.99)
+        {
+            var fullCircle = new EllipseGeometry(new WindowsPoint(centerX, centerY), radius, radius);
+            fullCircle.Freeze();
+            return fullCircle;
+        }
+
+        var angleRad = (percent / 100.0) * 2.0 * Math.PI;
+        var startX = centerX;
+        var startY = centerY - radius;
+        var endX = centerX + (radius * Math.Sin(angleRad));
+        var endY = centerY - (radius * Math.Cos(angleRad));
+        var isLargeArc = percent > 50.0;
+
+        var geometry = new PathGeometry();
+        var figure = new PathFigure
+        {
+            StartPoint = new WindowsPoint(startX, startY),
+            IsClosed = false,
+            IsFilled = false
+        };
+        figure.Segments.Add(new ArcSegment(
+            new WindowsPoint(endX, endY),
+            new WindowsSize(radius, radius),
+            0,
+            isLargeArc,
+            SweepDirection.Clockwise,
+            true));
+        geometry.Figures.Add(figure);
+        geometry.Freeze();
+        return geometry;
+    }
 
     private static SolidColorBrush BrushFrom(string color) =>
         new((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString(color));

@@ -27,10 +27,15 @@ It then uses two local Connect RPC methods:
 
 `defaultAgentModelId` is an account/default selection, not the model actually
 used by each conversation. TwinQuota registers a namespaced global
-`PreInvocation` hook and stores only its `modelName` and observation time. The
-last invoked model takes precedence over the default ID;
+`PreInvocation` hook and stores only its `modelName`, conversation ID, and
+observation time. The last invoked model takes precedence over the default ID;
 the RPC response still supplies display and quota metadata. Existing hook
 definitions are preserved.
+
+For the active conversation only, TwinQuota reads Antigravity's local transcript
+and estimates context usage from semantic payload fields after the latest
+checkpoint. The result is approximate because the hook does not expose an exact
+provider tokenizer count. Transcript content and paths are never persisted.
 
 The CSRF value exists only in memory for the duration of a refresh. It is never
 logged or included in `snapshot.json`.

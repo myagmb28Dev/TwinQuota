@@ -4,7 +4,8 @@ namespace TwinQuota.Core;
 
 public sealed record ActiveModelObservation(
     string ModelId,
-    DateTimeOffset ObservedAt);
+    DateTimeOffset ObservedAt,
+    string? ConversationId = null);
 
 public sealed class ActiveModelObservationStore
 {
@@ -92,7 +93,12 @@ public sealed class ActiveModelObservationStore
                 return null;
             }
 
-            return new ActiveModelObservation(modelName, observedAt);
+            var conversationId = root.TryGetProperty("conversationId", out var conversationIdElement)
+                && conversationIdElement.ValueKind == JsonValueKind.String
+                && conversationIdElement.GetString() is { Length: > 0 } convId
+                ? convId
+                : null;
+            return new ActiveModelObservation(modelName, observedAt, conversationId);
         }
         catch (JsonException)
         {
