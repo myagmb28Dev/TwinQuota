@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$Runtime = "win-x64",
-    [switch]$NoRestore
+    [switch]$NoRestore,
+    [switch]$BuildInstaller
 )
 
 $ErrorActionPreference = "Stop"
@@ -68,3 +69,32 @@ if (-not (Test-Path -LiteralPath $publishRoot)) {
 
 Compress-Archive -Path (Join-Path $publishRoot "*") -DestinationPath $archivePath
 Write-Host "Package: $archivePath"
+
+$isccPath = $null
+if (Get-Command iscc -ErrorAction SilentlyContinue) {
+    $isccPath = "iscc"
+} elseif (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe") {
+    $isccPath = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+} elseif (Test-Path "$env:ProgramFiles\Inno Setup 6\ISCC.exe") {
+    $isccPath = "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
+}
+
+if ($BuildInstaller -or $isccPath) {
+    if (-not $isccPath) {
+        throw "Inno Setup compiler (ISCC.exe) was not found."
+    }
+
+    $version = (dotnet msbuild (Join-Path $repositoryRoot "src\TwinQuota.Windows\TwinQuota.Windows.csproj") -getProperty:Version).Trim()
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        $version = "0.1.0"
+    }
+
+    $issPath = Join-Path $PSScriptRoot "TwinQuota.iss"
+    Write-Host "Compiling Inno Setup installer for version $version..."
+    & $isccPath "/DMyAppVersion=$version" $issPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
+    }
+    Write-Host "Installer: $(Join-Path $artifactsRoot "TwinQuota-Setup-v$version.exe")"
+}
+
