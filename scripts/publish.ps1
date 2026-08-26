@@ -9,7 +9,6 @@ $ErrorActionPreference = "Stop"
 $repositoryRoot = Split-Path -Parent $PSScriptRoot
 $artifactsRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot "artifacts\$Runtime"))
 $publishRoot = [IO.Path]::GetFullPath((Join-Path $artifactsRoot "app"))
-$archivePath = [IO.Path]::GetFullPath((Join-Path $artifactsRoot "TwinQuota-$Runtime.zip"))
 
 if (-not $publishRoot.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
     throw "Refusing to clean a publish directory outside the runtime artifacts folder."
@@ -17,10 +16,6 @@ if (-not $publishRoot.StartsWith($artifactsRoot + [IO.Path]::DirectorySeparatorC
 
 if (Test-Path -LiteralPath $publishRoot) {
     Remove-Item -LiteralPath $publishRoot -Recurse -Force
-}
-
-if (Test-Path -LiteralPath $archivePath) {
-    Remove-Item -LiteralPath $archivePath -Force
 }
 
 $publishArguments = @(
@@ -66,9 +61,6 @@ if ($LASTEXITCODE -ne 0) {
 if (-not (Test-Path -LiteralPath $publishRoot)) {
     throw "Publish output was not created at $publishRoot."
 }
-
-Compress-Archive -Path (Join-Path $publishRoot "*") -DestinationPath $archivePath
-Write-Host "Package: $archivePath"
 
 $isccPath = $null
 if (Get-Command iscc -ErrorAction SilentlyContinue) {

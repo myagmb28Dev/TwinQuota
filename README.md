@@ -33,7 +33,7 @@ enough for live quota and model discovery.
 ## Build and run
 
 ```powershell
-.\preview
+.\cmd\preview
 ```
 
 That command closes an older TwinQuota preview, builds the current working tree,
@@ -42,7 +42,7 @@ and starts the newly packaged executable without installing it.
 For a per-user Windows installation:
 
 ```powershell
-.\install
+.\cmd\install
 ```
 
 The install command copies TwinQuota to `%LOCALAPPDATA%\Programs\TwinQuota`,
@@ -50,7 +50,7 @@ adds a Start menu shortcut, registers TwinQuota in Windows Installed Apps, and
 starts the installed executable. Remove it from Windows Installed Apps or run:
 
 ```powershell
-.\uninstall
+.\cmd\uninstall
 ```
 
 The longer development commands are:
@@ -68,11 +68,11 @@ snapshot. The tray menu only provides Exit; window visibility follows the saved
 ## Package
 
 ```powershell
-.\scripts\publish.ps1
+.\scripts\publish.ps1 -BuildInstaller
 ```
 
-The command creates a single-file, framework-dependent Windows executable and a
-zip archive under `artifacts\win-x64`.
+The command creates a single-file, framework-dependent Windows executable and an
+Inno Setup installer under `artifacts\win-x64`.
 
 ## How collection works
 
