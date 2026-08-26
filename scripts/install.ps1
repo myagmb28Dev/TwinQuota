@@ -103,9 +103,19 @@ if (-not $SkipRegistration) {
     $uninstallCommand = "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScript`""
     $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\TwinQuota"
     $estimatedSize = [Math]::Ceiling((Get-ChildItem -LiteralPath $installRoot -File -Recurse | Measure-Object Length -Sum).Sum / 1KB)
+    $appVersion = "0.1.0"
+    if (Test-Path -LiteralPath $installedExecutable) {
+        $versionInfo = (Get-Item -LiteralPath $installedExecutable).VersionInfo
+        if ($versionInfo -and $versionInfo.ProductVersion) {
+            $appVersion = $versionInfo.ProductVersion.Split('+')[0].Trim()
+        } elseif ($versionInfo -and $versionInfo.FileVersion) {
+            $appVersion = $versionInfo.FileVersion.Trim()
+        }
+    }
+
     New-Item -Path $uninstallKey -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name DisplayName -Value "TwinQuota" -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value "1.0.0" -PropertyType String -Force | Out-Null
+    New-ItemProperty -Path $uninstallKey -Name DisplayVersion -Value $appVersion -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name Publisher -Value "myagmb28Dev" -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name InstallLocation -Value $installRoot -PropertyType String -Force | Out-Null
     New-ItemProperty -Path $uninstallKey -Name DisplayIcon -Value "$installedIcon,0" -PropertyType String -Force | Out-Null
