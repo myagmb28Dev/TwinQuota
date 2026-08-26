@@ -262,11 +262,18 @@
                         <Border Grid.Column="0"
                                 Background="Transparent"
                                 MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-                            <TextBlock Text="TwinQuota"
-                                       Foreground="#C9C2FF"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       VerticalAlignment="Center" />
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="TwinQuota"
+                                           Foreground="#C9C2FF"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center" />
+                                <TextBlock Text="v0.1"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           FontSize="10"
+                                           Margin="5,2,0,0"
+                                           VerticalAlignment="Center" />
+                            </StackPanel>
                         </Border>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                             <Button ToolTip="Minimize"
