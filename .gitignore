@@ -4,4 +4,5 @@ artifacts/
 .vs/
 *.user
 *.suo
+.codex/
 
