@@ -22,8 +22,15 @@ from the product log and the short-lived CSRF value from the matching process.
 It then uses two local Connect RPC methods:
 
 - `RetrieveUserQuotaSummary` for shared weekly and five-hour quota buckets.
-- `GetAvailableModels` for the current account's recommended agent model IDs,
-  display names, providers, remaining fraction, and reset time.
+- `GetAvailableModels` for the active `defaultAgentModelId` plus its display
+  name, provider, remaining fraction, and reset time.
+
+`defaultAgentModelId` is an account/default selection, not the model actually
+used by each conversation. TwinQuota registers a namespaced global
+`PreInvocation` hook and stores only its `modelName` and observation time. The
+last invoked model takes precedence over the default ID;
+the RPC response still supplies display and quota metadata. Existing hook
+definitions are preserved.
 
 The CSRF value exists only in memory for the duration of a refresh. It is never
 logged or included in `snapshot.json`.
@@ -38,17 +45,20 @@ The live response contained two shared groups:
 Each group had a weekly bucket and a five-hour bucket. Individual available
 models also carried their relevant remaining fraction and reset time.
 
-TwinQuota intentionally parses the model IDs returned in `agentModelSorts`
-instead of hard-coding a catalog. This lets newly enabled, removed, or
-plan-specific models appear without an app release.
+The response can contain a long recommended catalog in `agentModelSorts`.
+TwinQuota intentionally displays only the model referenced by
+`defaultAgentModelId`, then keeps only the quota group matching that model's
+provider. This avoids presenting account availability as current activity.
 
 ## CLI behavior
 
 Antigravity CLI is optional. If `agy.exe` is installed while no live language
 server endpoint can be found, TwinQuota can run the official `agy models
 --output-format json` command (with a text fallback for older builds) to obtain
-the model list. Detailed live quota still comes from a running Antigravity
-surface; otherwise the last successful safe snapshot is shown.
+the model list. Because that list does not reliably identify the active model,
+TwinQuota does not display it as current activity. Detailed active-model quota
+still comes from a running Antigravity surface; otherwise the last successful
+safe snapshot is shown.
 
 ## Local validation result
 

@@ -7,19 +7,22 @@ public sealed class TwinQuotaMonitor
     private readonly AntigravityRpcClient _rpcClient;
     private readonly AntigravityCliClient _cliClient;
     private readonly SnapshotCache _cache;
+    private readonly ActiveModelObservationStore _activeModelStore;
 
     public TwinQuotaMonitor(
         LanguageServerEndpointDiscovery? endpointDiscovery = null,
         AntigravityInstallationDetector? installationDetector = null,
         AntigravityRpcClient? rpcClient = null,
         AntigravityCliClient? cliClient = null,
-        SnapshotCache? cache = null)
+        SnapshotCache? cache = null,
+        ActiveModelObservationStore? activeModelStore = null)
     {
         _endpointDiscovery = endpointDiscovery ?? new LanguageServerEndpointDiscovery();
         _installationDetector = installationDetector ?? new AntigravityInstallationDetector();
         _rpcClient = rpcClient ?? new AntigravityRpcClient();
         _cliClient = cliClient ?? new AntigravityCliClient();
         _cache = cache ?? new SnapshotCache();
+        _activeModelStore = activeModelStore ?? new ActiveModelObservationStore();
     }
 
     public async Task<TwinQuotaSnapshot> RefreshAsync(CancellationToken cancellationToken = default)
@@ -36,7 +39,12 @@ public sealed class TwinQuotaMonitor
                 var modelsTask = _rpcClient.GetAvailableModelsAsync(endpoint, cancellationToken);
                 await Task.WhenAll(quotaTask, modelsTask).ConfigureAwait(false);
                 var quotaGroups = AntigravityResponseParser.ParseQuotaSummary(await quotaTask.ConfigureAwait(false));
-                var models = AntigravityResponseParser.ParseAvailableModels(await modelsTask.ConfigureAwait(false));
+                var modelsJson = await modelsTask.ConfigureAwait(false);
+                var observedModel = await _activeModelStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var modelResolution = ActiveModelResolver.Resolve(modelsJson, observedModel);
+                var models = modelResolution.Models;
+                var activeModel = modelResolution.ActiveModel;
+
                 var snapshot = new TwinQuotaSnapshot(
                     DateTimeOffset.Now,
                     true,
@@ -44,7 +52,10 @@ public sealed class TwinQuotaMonitor
                     products,
                     quotaGroups,
                     models,
-                    "Live data from Antigravity localhost RPC");
+                    null)
+                {
+                    ActiveModelId = activeModel?.Id
+                };
                 await _cache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
                 return snapshot;
             }
@@ -62,16 +73,14 @@ public sealed class TwinQuotaMonitor
                 var cliModels = await _cliClient.ReadModelsAsync(cli.ExecutablePath, cancellationToken).ConfigureAwait(false);
                 if (cliModels.Count > 0)
                 {
-                    var snapshot = new TwinQuotaSnapshot(
+                    return new TwinQuotaSnapshot(
                         DateTimeOffset.Now,
                         true,
                         "Antigravity CLI",
                         products,
                         [],
                         cliModels,
-                        "Model list from agy; start an Antigravity surface for quota details");
-                    await _cache.SaveAsync(snapshot, cancellationToken).ConfigureAwait(false);
-                    return snapshot;
+                        null);
                 }
             }
             catch (Exception exception) when (exception is IOException or TaskCanceledException or InvalidOperationException)

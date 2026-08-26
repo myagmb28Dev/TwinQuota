@@ -5,6 +5,26 @@ namespace TwinQuota.Core.Tests;
 public sealed class StorageAndDetectionTests
 {
     [Fact]
+    public void GroupsPriorityVariantsIntoOneModelFamily()
+    {
+        ModelAvailability[] models =
+        [
+            new("flash-low", "Gemini 3.7 Flash (Low)", "Google", null, null),
+            new("flash-high", "Gemini 3.7 Flash (High)", "Google", null, null),
+            new("flash-medium", "Gemini 3.7 Flash (Medium)", "Google", null, null),
+            new("claude", "Claude Sonnet (Thinking)", "Anthropic", null, null)
+        ];
+
+        var families = ModelFamilyGrouper.Group(models);
+
+        var gemini = Assert.Single(families, family => family.DisplayName == "Gemini 3.7 Flash");
+        Assert.Equal(["Low", "Medium", "High"], gemini.Priorities);
+        Assert.Equal(3, gemini.Models.Count);
+        var claude = Assert.Single(families, family => family.DisplayName == "Claude Sonnet (Thinking)");
+        Assert.Empty(claude.Priorities);
+    }
+
+    [Fact]
     public void DetectsInstalledRunningAndDataOnlySurfaces()
     {
         var root = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
@@ -53,7 +73,10 @@ public sealed class StorageAndDetectionTests
                 [],
                 [new QuotaGroup("Gemini Models", null, [])],
                 [new ModelAvailability("gemini", "Gemini", "Google", 0.5, null)],
-                "Live");
+                "Live")
+            {
+                ActiveModelId = "gemini"
+            };
 
             await cache.SaveAsync(snapshot, CancellationToken.None);
             var loaded = await cache.LoadAsync(CancellationToken.None);
@@ -61,6 +84,7 @@ public sealed class StorageAndDetectionTests
 
             Assert.NotNull(loaded);
             Assert.Single(loaded.Models);
+            Assert.Equal("gemini", loaded.ActiveModelId);
             Assert.DoesNotContain("csrf", content, StringComparison.OrdinalIgnoreCase);
             Assert.DoesNotContain("token", content, StringComparison.OrdinalIgnoreCase);
         }
