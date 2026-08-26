@@ -13,10 +13,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-test-package:
-    name: Build, test, package, and release
+  build:
+    name: Build
     runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore .\TwinQuota.slnx -p:NuGetAudit=false
+
+      - name: Build solution
+        shell: pwsh
+        run: dotnet build .\TwinQuota.slnx --configuration Release --no-restore
+
+  test:
+    name: Test
+    runs-on: windows-latest
+    needs: build
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore .\TwinQuota.slnx -p:NuGetAudit=false
+
+      - name: Run unit tests
+        shell: pwsh
+        run: dotnet test .\tests\TwinQuota.Core.Tests\TwinQuota.Core.Tests.csproj --configuration Release --no-restore
+
+  release:
+    name: Package and Release
+    runs-on: windows-latest
+    needs: [build, test]
     timeout-minutes: 20
+    permissions:
+      contents: write
 
     steps:
       - name: Check out source
@@ -28,18 +76,6 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 10.0.x
-
-      - name: Restore
-        shell: pwsh
-        run: dotnet restore .\TwinQuota.slnx -p:NuGetAudit=false
-
-      - name: Build
-        shell: pwsh
-        run: dotnet build .\TwinQuota.slnx --configuration Release --no-restore
-
-      - name: Test
-        shell: pwsh
-        run: dotnet test .\tests\TwinQuota.Core.Tests\TwinQuota.Core.Tests.csproj --configuration Release --no-build --no-restore
 
       - name: Package Windows app
         shell: pwsh
@@ -88,4 +124,5 @@ jobs:
             Write-Host "Creating new GitHub Release $env:RELEASE_TAG..."
             gh release create $env:RELEASE_TAG $env:ZIP_PATH --title "$env:RELEASE_TITLE" --generate-notes
           }
+
 
