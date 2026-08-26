@@ -77,17 +77,9 @@ jobs:
         with:
           dotnet-version: 10.0.x
 
-      - name: Package Windows app
+      - name: Install Inno Setup
         shell: pwsh
-        run: .\scripts\publish.ps1
-
-      - name: Upload Windows package artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: TwinQuota-win-x64
-          path: artifacts/win-x64/TwinQuota-win-x64.zip
-          if-no-files-found: error
-          retention-days: 14
+        run: choco install innosetup --no-progress
 
       - name: Extract project version
         id: project_version
@@ -101,12 +93,33 @@ jobs:
           "version=$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           "tag=v$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
+      - name: Package Windows app and build installer
+        shell: pwsh
+        run: .\scripts\publish.ps1 -BuildInstaller
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TwinQuota-Setup
+          path: artifacts/win-x64/TwinQuota-Setup-v${{ steps.project_version.outputs.version }}.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Windows zip artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TwinQuota-win-x64
+          path: artifacts/win-x64/TwinQuota-win-x64.zip
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Create or update GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_TAG: ${{ steps.project_version.outputs.tag }}
           RELEASE_TITLE: TwinQuota ${{ steps.project_version.outputs.tag }}
+          SETUP_EXE_PATH: artifacts/win-x64/TwinQuota-Setup-v${{ steps.project_version.outputs.version }}.exe
           ZIP_PATH: artifacts/win-x64/TwinQuota-win-x64.zip
         run: |
           Write-Host "Target release tag: $env:RELEASE_TAG"
@@ -118,11 +131,12 @@ jobs:
           }
 
           if ($LASTEXITCODE -eq 0 -and $releaseJson) {
-            Write-Host "Release $env:RELEASE_TAG exists. Updating release asset..."
-            gh release upload $env:RELEASE_TAG $env:ZIP_PATH --clobber
+            Write-Host "Release $env:RELEASE_TAG exists. Updating release assets..."
+            gh release upload $env:RELEASE_TAG $env:SETUP_EXE_PATH $env:ZIP_PATH --clobber
           } else {
             Write-Host "Creating new GitHub Release $env:RELEASE_TAG..."
-            gh release create $env:RELEASE_TAG $env:ZIP_PATH --title "$env:RELEASE_TITLE" --generate-notes
+            gh release create $env:RELEASE_TAG $env:SETUP_EXE_PATH $env:ZIP_PATH --title "$env:RELEASE_TITLE" --generate-notes
           }
+
 
 
