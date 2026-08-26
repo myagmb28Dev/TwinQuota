@@ -46,6 +46,8 @@ public sealed record TwinQuotaSnapshot(
     IReadOnlyList<ModelAvailability> Models,
     string? Message)
 {
+    public string? ActiveModelId { get; init; }
+
     public static TwinQuotaSnapshot Empty(string message) => new(
         DateTimeOffset.Now,
         false,

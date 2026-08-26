@@ -42,6 +42,26 @@ if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE."
 }
 
+$hookPublishArguments = @(
+    "publish",
+    (Join-Path $repositoryRoot "src\TwinQuota.Hook\TwinQuota.Hook.csproj"),
+    "--configuration", "Release",
+    "--runtime", $Runtime,
+    "--self-contained", "false",
+    "-p:NuGetAudit=false",
+    "-p:PublishSingleFile=true",
+    "-p:DebugType=None",
+    "--output", $publishRoot
+)
+if ($NoRestore) {
+    $hookPublishArguments += "--no-restore"
+}
+
+& dotnet @hookPublishArguments
+if ($LASTEXITCODE -ne 0) {
+    throw "TwinQuota hook publish failed with exit code $LASTEXITCODE."
+}
+
 if (-not (Test-Path -LiteralPath $publishRoot)) {
     throw "Publish output was not created at $publishRoot."
 }

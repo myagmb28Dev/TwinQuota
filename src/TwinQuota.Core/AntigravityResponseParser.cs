@@ -111,6 +111,25 @@ public static class AntigravityResponseParser
         return ParseModel(activeModelId, model);
     }
 
+    public static ModelAvailability? ParseModelById(string json, string modelId)
+    {
+        if (string.IsNullOrWhiteSpace(modelId))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetResponse(document.RootElement, out var response)
+            || !response.TryGetProperty("models", out var modelsElement)
+            || modelsElement.ValueKind != JsonValueKind.Object
+            || !modelsElement.TryGetProperty(modelId, out var model))
+        {
+            return null;
+        }
+
+        return ParseModel(modelId, model);
+    }
+
     public static IReadOnlyList<ModelAvailability> ParseCliModels(string output)
     {
         if (string.IsNullOrWhiteSpace(output))

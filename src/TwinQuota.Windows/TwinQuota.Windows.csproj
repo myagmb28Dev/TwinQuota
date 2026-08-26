@@ -7,8 +7,29 @@
     <AssemblyName>TwinQuota</AssemblyName>
     <RootNamespace>TwinQuota.Windows</RootNamespace>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Assets\TwinQuota.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\TwinQuota.Core\TwinQuota.Core.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <Resource Include="Assets\TwinQuota.ico" />
+  </ItemGroup>
+  <Target Name="BuildHookHelper"
+          BeforeTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(PublishSingleFile)' != 'true'">
+    <MSBuild Projects="..\TwinQuota.Hook\TwinQuota.Hook.csproj"
+             Targets="Build"
+             Properties="Configuration=$(Configuration)" />
+  </Target>
+  <Target Name="CopyHookHelper"
+          AfterTargets="Build"
+          Condition="'$(DesignTimeBuild)' != 'true' and '$(PublishSingleFile)' != 'true'">
+    <ItemGroup>
+      <HookHelperFiles Include="..\TwinQuota.Hook\bin\$(Configuration)\net10.0\TwinQuota.Hook*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(HookHelperFiles)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
 </Project>

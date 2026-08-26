@@ -141,6 +141,34 @@ public sealed class AntigravityResponseParserTests
     }
 
     [Fact]
+    public void ResolvesTheActuallyInvokedPriorityVariantById()
+    {
+        const string json = """
+            {
+              "response": {
+                "defaultAgentModelId": "gemini-3.7-flash-high",
+                "models": {
+                  "gemini-3.7-flash-high": {
+                    "displayName": "Gemini 3.7 Flash (High)",
+                    "modelProvider": "MODEL_PROVIDER_GOOGLE"
+                  },
+                  "gemini-3.7-flash-medium": {
+                    "displayName": "Gemini 3.7 Flash (Medium)",
+                    "modelProvider": "MODEL_PROVIDER_GOOGLE"
+                  }
+                }
+              }
+            }
+            """;
+
+        var model = AntigravityResponseParser.ParseModelById(json, "gemini-3.7-flash-medium");
+
+        Assert.NotNull(model);
+        Assert.Equal("gemini-3.7-flash-medium", model.Id);
+        Assert.Equal("Gemini 3.7 Flash (Medium)", model.DisplayName);
+    }
+
+    [Fact]
     public void ParsesCliJsonAndLegacyTextLists()
     {
         const string json = """

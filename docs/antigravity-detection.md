@@ -25,6 +25,13 @@ It then uses two local Connect RPC methods:
 - `GetAvailableModels` for the active `defaultAgentModelId` plus its display
   name, provider, remaining fraction, and reset time.
 
+`defaultAgentModelId` is an account/default selection, not the model actually
+used by each conversation. TwinQuota registers a namespaced global
+`PreInvocation` hook and stores only its `modelName` and observation time. The
+last invoked model takes precedence over the default ID;
+the RPC response still supplies display and quota metadata. Existing hook
+definitions are preserved.
+
 The CSRF value exists only in memory for the duration of a refresh. It is never
 logged or included in `snapshot.json`.
 
