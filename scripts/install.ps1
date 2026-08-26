@@ -37,15 +37,33 @@ if (-not (Test-Path -LiteralPath $publishedExecutable)) {
     throw "Published executable was not found at '$publishedExecutable'."
 }
 
-Get-Process -Name "TwinQuota" -ErrorAction SilentlyContinue | Where-Object {
-    $_.Path -and (
-        $_.Path.StartsWith($repositoryRoot, [StringComparison]::OrdinalIgnoreCase) -or
-        $_.Path.StartsWith($installRoot, [StringComparison]::OrdinalIgnoreCase)
-    )
-} | Stop-Process -Force
+$runningApplications = @(Get-Process -Name "TwinQuota" -ErrorAction SilentlyContinue)
+if ($runningApplications.Count -gt 0) {
+    $runningApplications | Stop-Process -Force
+    $runningApplications | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+
+    $remainingProcessIds = @($runningApplications | Where-Object {
+        Get-Process -Id $_.Id -ErrorAction SilentlyContinue
+    } | Select-Object -ExpandProperty Id)
+    if ($remainingProcessIds.Count -gt 0) {
+        throw "TwinQuota did not exit within 10 seconds. Remaining process IDs: $($remainingProcessIds -join ', ')."
+    }
+}
 
 if (Test-Path -LiteralPath $installRoot) {
-    Remove-Item -LiteralPath $installRoot -Recurse -Force
+    for ($attempt = 1; $attempt -le 8; $attempt++) {
+        try {
+            Remove-Item -LiteralPath $installRoot -Recurse -Force
+            break
+        }
+        catch {
+            if ($attempt -eq 8) {
+                throw
+            }
+
+            Start-Sleep -Milliseconds 250
+        }
+    }
 }
 New-Item -ItemType Directory -Path $installRoot -Force | Out-Null
 Copy-Item -Path (Join-Path $publishedApp "*") -Destination $installRoot -Recurse -Force
