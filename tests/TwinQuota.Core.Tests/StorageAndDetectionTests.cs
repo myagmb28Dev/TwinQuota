@@ -58,6 +58,41 @@ public sealed class StorageAndDetectionTests
     }
 
     [Fact]
+    public void DetectsVsCodeExtensionSurface()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
+        var local = Path.Combine(root, "Local");
+        var roaming = Path.Combine(root, "Roaming");
+        var profile = Path.Combine(root, "Profile");
+        try
+        {
+            var extensionDir = Path.Combine(profile, ".vscode", "extensions", "google.google-antigravity-1.1.0");
+            Directory.CreateDirectory(extensionDir);
+            File.WriteAllText(Path.Combine(extensionDir, "package.json"), "{\"version\":\"1.1.0\"}");
+            var agyPath = Path.Combine(profile, ".gemini", "bin", "agy.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(agyPath)!);
+            File.WriteAllBytes(agyPath, []);
+            Directory.CreateDirectory(Path.Combine(profile, ".gemini", "antigravity"));
+
+            var detector = new AntigravityInstallationDetector(local, roaming, profile);
+            var products = detector.Detect(
+                [new LanguageServerEndpoint(AntigravitySurface.VsCode, 1234, 65383, "secret")]);
+
+            var vsCodeProduct = Assert.Single(products, p => p.Surface == AntigravitySurface.VsCode);
+            Assert.True(vsCodeProduct.Installed);
+            Assert.True(vsCodeProduct.Running);
+            Assert.True(vsCodeProduct.HasLocalData);
+            Assert.Equal("1.1.0", vsCodeProduct.Version);
+            Assert.Equal(agyPath, vsCodeProduct.ExecutablePath);
+            Assert.Equal("Antigravity for VS Code", vsCodeProduct.DisplayName);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
     public async Task SnapshotCacheRoundTripsWithoutEndpointSecrets()
     {
         var directory = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
@@ -92,5 +127,29 @@ public sealed class StorageAndDetectionTests
         {
             Directory.Delete(directory, true);
         }
+    }
+
+    [Fact]
+    public async Task LiveEnvironmentDetectionFindsRunningVsCodeServer()
+    {
+        var discovery = new LanguageServerEndpointDiscovery();
+        var endpoints = await discovery.DiscoverAsync(CancellationToken.None);
+        if (endpoints.Count == 0)
+        {
+            return;
+        }
+
+        var detector = new AntigravityInstallationDetector();
+        var products = detector.Detect(endpoints);
+        var vsCode = products.FirstOrDefault(p => p.Surface == AntigravitySurface.VsCode);
+
+        Assert.NotNull(vsCode);
+        Assert.True(vsCode.Installed);
+        Assert.True(vsCode.Running);
+
+        var monitor = new TwinQuotaMonitor(discovery, detector);
+        var snapshot = await monitor.RefreshAsync(CancellationToken.None);
+        Assert.True(snapshot.IsLive);
+        Assert.NotEmpty(snapshot.Models);
     }
 }

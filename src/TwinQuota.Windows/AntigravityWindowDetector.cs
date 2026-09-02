@@ -16,6 +16,15 @@ internal sealed class AntigravityWindowDetector
         "wt"
     };
 
+    private static readonly HashSet<string> IdeHostProcessNames = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "code",
+        "codeinsiders",
+        "cursor",
+        "windsurf",
+        "vscodium"
+    };
+
     public bool HasVisibleWindow()
     {
         foreach (var process in Process.GetProcesses())
@@ -85,7 +94,8 @@ internal sealed class AntigravityWindowDetector
 
     private static bool IsAntigravityProcess(string normalizedName) =>
         normalizedName.StartsWith("antigravity", StringComparison.OrdinalIgnoreCase) ||
-        normalizedName.Equals("agy", StringComparison.OrdinalIgnoreCase);
+        normalizedName.Equals("agy", StringComparison.OrdinalIgnoreCase) ||
+        IdeHostProcessNames.Contains(normalizedName);
 
     private static bool IsAntigravityTerminalTitle(string title) =>
         title.Contains("Antigravity", StringComparison.OrdinalIgnoreCase) ||

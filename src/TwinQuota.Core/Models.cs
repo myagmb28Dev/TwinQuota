@@ -4,7 +4,8 @@ public enum AntigravitySurface
 {
     Desktop2,
     Ide,
-    Cli
+    Cli,
+    VsCode
 }
 
 public sealed record ProductStatus(

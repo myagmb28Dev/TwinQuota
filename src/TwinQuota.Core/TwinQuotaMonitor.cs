@@ -116,6 +116,7 @@ public sealed class TwinQuotaMonitor
         AntigravitySurface.Desktop2 => "Antigravity 2.0",
         AntigravitySurface.Ide => "Antigravity IDE",
         AntigravitySurface.Cli => "Antigravity CLI",
+        AntigravitySurface.VsCode => "Antigravity for VS Code",
         _ => "Antigravity"
     };
 }

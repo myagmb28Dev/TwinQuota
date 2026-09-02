@@ -8,6 +8,8 @@ public sealed class LanguageServerEndpointDiscoveryTests
     [InlineData("--csrf_token secret --app_data_dir antigravity --subclient_type desktop", AntigravitySurface.Desktop2)]
     [InlineData("--csrf_token secret --app_data_dir antigravity-ide --subclient_type ide", AntigravitySurface.Ide)]
     [InlineData("--csrf_token secret --app_data_dir antigravity-cli --subclient_type cli", AntigravitySurface.Cli)]
+    [InlineData("--csrf_token secret --app_data_dir antigravity --subclient_type vs-code", AntigravitySurface.VsCode)]
+    [InlineData("--hub --hub-port=65383 --app_data_dir=antigravity", AntigravitySurface.VsCode)]
     public void MapsLanguageServerCommandLineToSurface(string commandLine, AntigravitySurface expected)
     {
         var parsed = LanguageServerEndpointDiscovery.TryParseCommandLine(
@@ -17,7 +19,32 @@ public sealed class LanguageServerEndpointDiscoveryTests
 
         Assert.True(parsed);
         Assert.Equal(expected, surface);
-        Assert.Equal("secret", csrfToken);
+    }
+
+    [Fact]
+    public void ParsesHubCommandLineWithExplicitPort()
+    {
+        const string commandLine = @"C:\Users\test\.gemini\bin\agy.exe --hub --hub-port=65383 --app_data_dir=antigravity --add-dir=d:\Codes\TwinQuota";
+        var parsed = LanguageServerEndpointDiscovery.TryParseCommandLine(
+            commandLine,
+            out var surface,
+            out var csrfToken,
+            out var explicitPort);
+
+        Assert.True(parsed);
+        Assert.Equal(AntigravitySurface.VsCode, surface);
+        Assert.Equal(65383, explicitPort);
+        Assert.Empty(csrfToken);
+    }
+
+    [Fact]
+    public void ExtractsCsrfTokenFromHubHtml()
+    {
+        const string html = "<!doctype html><html><head><script>window.__APP_CONFIG__ = {\"productName\":\"antigravity\",\"csrfToken\":\"81fc55a1-fe04-4d7f-be07-446a69da2d89\",\"appVersion\":\"\",\"devMode\":false};</script></head><body></body></html>";
+        var extracted = LanguageServerEndpointDiscovery.TryExtractCsrfTokenFromHtml(html, out var token);
+
+        Assert.True(extracted);
+        Assert.Equal("81fc55a1-fe04-4d7f-be07-446a69da2d89", token);
     }
 
     [Fact]

@@ -8,11 +8,16 @@ Validated on Windows on 2026-08-25 against Antigravity 2.0 v2.10.0.
 | --- | --- | --- | --- |
 | Antigravity 2.0 | Per-user application path and uninstall registration | `language_server.exe` with `app_data_dir=antigravity` | No |
 | Antigravity IDE | Per-user IDE application path | `language_server_windows_x64.exe` with `app_data_dir=antigravity-ide` | No |
+| Antigravity for VS Code | VS Code extension directory and `~/.gemini/bin/agy.exe` | `agy.exe` with `--hub` / `language_server.exe` | No |
 | Antigravity CLI | `agy.exe` on PATH or in the documented local install path | CLI language-server process when exposed | Only for CLI users |
 
 Local data without an executable is reported as a remnant, not as an installed
 product. This prevents an old IDE profile from being mistaken for a current
 installation.
+
+For VS Code extension hub mode (`agy.exe --hub`), the live HTTP port is discovered
+from `--hub-port` or `cli-*.log`, and the CSRF token is obtained from the local hub
+app configuration served at `http://127.0.0.1:<port>/`.
 
 ## Live data path
 

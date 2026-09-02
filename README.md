@@ -3,15 +3,15 @@
 [![CI](https://github.com/myagmb28Dev/TwinQuota/actions/workflows/ci.yml/badge.svg)](https://github.com/myagmb28Dev/TwinQuota/actions/workflows/ci.yml)
 
 TwinQuota is a small Windows tray app for monitoring model quota usage across
-Google Antigravity 2.0, Antigravity IDE, and Antigravity CLI.
+Google Antigravity 2.0, Antigravity IDE, Antigravity for VS Code, and Antigravity CLI.
 
 It reads the localhost language-server API already exposed by a running
-Antigravity surface. The CLI is optional: Antigravity 2.0 or Antigravity IDE is
-enough for live quota and model discovery.
+Antigravity surface. The CLI is optional: Antigravity 2.0, Antigravity IDE, or
+Antigravity for VS Code is enough for live quota and model discovery.
 
 ## Features
 
-- Detects Antigravity 2.0, Antigravity IDE, and Antigravity CLI independently.
+- Detects Antigravity 2.0, Antigravity IDE, Antigravity for VS Code, and Antigravity CLI independently.
 - Shows the currently active agent model reported by Antigravity.
 - Shows only the weekly and five-hour quota windows associated with that active
   model's provider.
@@ -20,7 +20,7 @@ enough for live quota and model discovery.
 - Uses a compact window instead of listing every account-available model.
 - Keeps the latest successful snapshot available while Antigravity is closed.
 - Lives in the Windows notification area and refreshes every 30 seconds.
-- Optionally shows the window only while an Antigravity 2.0, IDE, or CLI window is open.
+- Optionally shows the window only while an Antigravity 2.0, IDE, VS Code, or CLI window is open.
 - Never reads or persists Google OAuth credentials.
 
 ## Requirements
