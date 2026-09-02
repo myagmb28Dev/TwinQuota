@@ -140,13 +140,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         base.OnSourceInitialized(e);
         _windowSource = PresentationSource.FromVisual(this) as HwndSource;
         _windowSource?.AddHook(WindowMessageHook);
-        if (_windowSource is not null && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
-        {
-            var preference = DwmwcpRound;
-            DwmSetWindowAttribute(_windowSource.Handle, DwmwaWindowCornerPreference, ref preference, sizeof(int));
-            var borderColor = DwmwaColorNone;
-            DwmSetWindowAttribute(_windowSource.Handle, DwmwaBorderColor, ref borderColor, sizeof(uint));
-        }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -667,6 +660,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr longParameter,
         ref bool handled)
     {
+        if (message == WmNcCalcSize)
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (message != WmNcHitTest || WindowState != WindowState.Normal ||
             !GetWindowRect(windowHandle, out var windowRect))
         {
@@ -911,15 +910,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     [DllImport("user32.dll", ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(IntPtr windowHandle, out NativeRect rectangle);
-
-    [DllImport("dwmapi.dll", ExactSpelling = true)]
-    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     #pragma warning restore SYSLIB1054
 
-    private const int DwmwaWindowCornerPreference = 33;
-    private const int DwmwaBorderColor = 34;
-    private const int DwmwcpRound = 2;
-    private const uint DwmwaColorNone = 0xFFFFFFFE;
+    private const int WmNcCalcSize = 0x0083;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
