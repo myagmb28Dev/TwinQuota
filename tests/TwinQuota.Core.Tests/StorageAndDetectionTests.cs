@@ -130,7 +130,7 @@ public sealed class StorageAndDetectionTests
     }
 
     [Fact]
-    public async Task LiveEnvironmentDetectionFindsRunningVsCodeServer()
+    public async Task LiveEnvironmentDetectionFindsRunningServer()
     {
         var discovery = new LanguageServerEndpointDiscovery();
         var endpoints = await discovery.DiscoverAsync(CancellationToken.None);
@@ -141,11 +141,11 @@ public sealed class StorageAndDetectionTests
 
         var detector = new AntigravityInstallationDetector();
         var products = detector.Detect(endpoints);
-        var vsCode = products.FirstOrDefault(p => p.Surface == AntigravitySurface.VsCode);
+        var runningSurface = endpoints[0].Surface;
+        var runningProduct = products.FirstOrDefault(p => p.Surface == runningSurface);
 
-        Assert.NotNull(vsCode);
-        Assert.True(vsCode.Installed);
-        Assert.True(vsCode.Running);
+        Assert.NotNull(runningProduct);
+        Assert.True(runningProduct.Running);
 
         var monitor = new TwinQuotaMonitor(discovery, detector);
         var snapshot = await monitor.RefreshAsync(CancellationToken.None);

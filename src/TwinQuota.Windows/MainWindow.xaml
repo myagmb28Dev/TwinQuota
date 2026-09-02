@@ -13,11 +13,12 @@
         ShowInTaskbar="False"
         Topmost="True"
         WindowStyle="None"
+        AllowsTransparency="True"
         ResizeMode="CanResize"
         UseLayoutRounding="True"
         SnapsToDevicePixels="True"
         TextOptions.TextFormattingMode="Display"
-        Background="{StaticResource CardBrush}"
+        Background="Transparent"
         Foreground="{StaticResource TextBrush}">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="0"

@@ -140,6 +140,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         base.OnSourceInitialized(e);
         _windowSource = PresentationSource.FromVisual(this) as HwndSource;
         _windowSource?.AddHook(WindowMessageHook);
+        if (_windowSource is not null && OperatingSystem.IsWindowsVersionAtLeast(10, 0, 22000))
+        {
+            var preference = DwmwcpRound;
+            DwmSetWindowAttribute(_windowSource.Handle, DwmwaWindowCornerPreference, ref preference, sizeof(int));
+        }
     }
 
     protected override void OnClosed(EventArgs e)
@@ -904,7 +909,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     [DllImport("user32.dll", ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(IntPtr windowHandle, out NativeRect rectangle);
+
+    [DllImport("dwmapi.dll", ExactSpelling = true)]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int attrValue, int attrSize);
     #pragma warning restore SYSLIB1054
+
+    private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwcpRound = 2;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
