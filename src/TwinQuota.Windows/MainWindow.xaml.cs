@@ -144,6 +144,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             var preference = DwmwcpRound;
             DwmSetWindowAttribute(_windowSource.Handle, DwmwaWindowCornerPreference, ref preference, sizeof(int));
+            var borderColor = DwmwaColorNone;
+            DwmSetWindowAttribute(_windowSource.Handle, DwmwaBorderColor, ref borderColor, sizeof(uint));
         }
     }
 
@@ -915,7 +917,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     #pragma warning restore SYSLIB1054
 
     private const int DwmwaWindowCornerPreference = 33;
+    private const int DwmwaBorderColor = 34;
     private const int DwmwcpRound = 2;
+    private const uint DwmwaColorNone = 0xFFFFFFFE;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect

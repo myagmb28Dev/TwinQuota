@@ -20,14 +20,6 @@
         TextOptions.TextFormattingMode="Display"
         Background="Transparent"
         Foreground="{StaticResource TextBrush}">
-    <shell:WindowChrome.WindowChrome>
-        <shell:WindowChrome CaptionHeight="0"
-                            ResizeBorderThickness="8"
-                            CornerRadius="14"
-                            GlassFrameThickness="0"
-                            UseAeroCaptionButtons="False" />
-    </shell:WindowChrome.WindowChrome>
-
     <Window.Resources>
         <DataTemplate x:Key="QuotaRowTemplate">
             <StackPanel Margin="0,0,0,14">
