@@ -175,7 +175,9 @@ public sealed class AntigravityInstallationDetector
             Path.Combine(_userProfile, ".vscode", "extensions"),
             Path.Combine(_userProfile, ".vscode-insiders", "extensions"),
             Path.Combine(_userProfile, ".cursor", "extensions"),
-            Path.Combine(_userProfile, ".windsurf", "extensions")
+            Path.Combine(_userProfile, ".windsurf", "extensions"),
+            Path.Combine(_userProfile, ".vscode-oss", "extensions"),
+            Path.Combine(_userProfile, ".vscodium", "extensions")
         };
 
         string? foundExtensionPath = null;
@@ -208,10 +210,7 @@ public sealed class AntigravityInstallationDetector
             }
         }
 
-        var geminiAgy = Path.Combine(_userProfile, ".gemini", "bin", "agy.exe");
-        var executablePath = File.Exists(geminiAgy) ? geminiAgy : foundExtensionPath;
-
-        return (foundExtensionPath, foundVersion, executablePath);
+        return (foundExtensionPath, foundVersion, foundExtensionPath);
     }
 
     private static string? ReadExtensionPackageVersion(string packageJsonPath)

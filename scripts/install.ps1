@@ -103,7 +103,7 @@ if (-not $SkipRegistration) {
     $uninstallCommand = "powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$uninstallScript`""
     $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\TwinQuota"
     $estimatedSize = [Math]::Ceiling((Get-ChildItem -LiteralPath $installRoot -File -Recurse | Measure-Object Length -Sum).Sum / 1KB)
-    $appVersion = "0.1.0"
+    $appVersion = "0.2.0"
     if (Test-Path -LiteralPath $installedExecutable) {
         $versionInfo = (Get-Item -LiteralPath $installedExecutable).VersionInfo
         if ($versionInfo -and $versionInfo.ProductVersion) {

@@ -60,6 +60,7 @@ public sealed class AntigravityResponseParserTests
                   "gemini-3.7-flash-high": {
                     "displayName": "Gemini 3.7 Flash (High)",
                     "modelProvider": "MODEL_PROVIDER_GOOGLE",
+                    "maxTokens": 1048576,
                     "quotaInfo": { "remainingFraction": 0.8, "resetTime": "2026-08-25T14:52:01Z" }
                   },
                   "claude-sonnet-4-6": {
@@ -93,6 +94,7 @@ public sealed class AntigravityResponseParserTests
             model => Assert.Equal("Anthropic", model.Provider),
             model => Assert.Equal("OpenAI", model.Provider));
         Assert.DoesNotContain(models, model => model.Id == "internal-model");
+        Assert.Equal(1_048_576, models[0].MaxTokens);
     }
 
     [Fact]
@@ -189,5 +191,76 @@ public sealed class AntigravityResponseParserTests
         Assert.Equal("Anthropic", jsonModels[1].Provider);
         Assert.Equal(2, textModels.Count);
         Assert.Equal("OpenAI", textModels[1].Provider);
+    }
+
+    [Fact]
+    public void ParsesTrajectoryStepCountForTheObservedConversation()
+    {
+        const string json = """
+            {
+              "trajectorySummaries": {
+                "conversation-123": { "stepCount": 487 },
+                "another-conversation": { "stepCount": 12 }
+              }
+            }
+            """;
+
+        var summary = AntigravityResponseParser.ParseTrajectorySummary(json, "conversation-123");
+
+        Assert.NotNull(summary);
+        Assert.Equal(487, summary.StepCount);
+    }
+
+    [Fact]
+    public void ParsesLatestCompletedModelContextFromActualUsageMetadata()
+    {
+        const string json = """
+            {
+              "steps": [
+                { "metadata": { "modelUsage": {
+                  "inputTokens": "1200",
+                  "cacheReadTokens": "8000",
+                  "outputTokens": "300"
+                } } },
+                { "metadata": { "modelUsage": {
+                  "inputTokens": 2400,
+                  "cacheReadTokens": 15000,
+                  "outputTokens": 600
+                } } },
+                { "metadata": {} }
+              ]
+            }
+            """;
+
+        var tokens = AntigravityResponseParser.ParseLatestContextTokens(json);
+
+        Assert.Equal(18_000, tokens);
+    }
+
+    [Fact]
+    public void ParsesTheLatestAntigravityContextWindowEstimate()
+    {
+        const string json = """
+            {
+              "generatorMetadata": [
+                { "chatModel": { "chatStartMetadata": { "contextWindowMetadata": {
+                  "estimatedTokensUsed": 65489,
+                  "maxContextTokens": 256000
+                } } } },
+                { "otherGenerator": {} },
+                { "chatModel": { "chatStartMetadata": { "contextWindowMetadata": {
+                  "estimatedTokensUsed": "66101",
+                  "maxContextTokens": 256000
+                } } } }
+              ]
+            }
+            """;
+
+        var page = AntigravityResponseParser.ParseGeneratorMetadataPage(json);
+
+        Assert.Equal(3, page.ItemCount);
+        Assert.NotNull(page.LatestContextWindowUsage);
+        Assert.Equal(66_101, page.LatestContextWindowUsage.UsedTokens);
+        Assert.Equal(256_000, page.LatestContextWindowUsage.MaxTokens);
     }
 }

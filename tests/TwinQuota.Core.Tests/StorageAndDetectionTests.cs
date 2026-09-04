@@ -83,8 +83,34 @@ public sealed class StorageAndDetectionTests
             Assert.True(vsCodeProduct.Running);
             Assert.True(vsCodeProduct.HasLocalData);
             Assert.Equal("1.1.0", vsCodeProduct.Version);
-            Assert.Equal(agyPath, vsCodeProduct.ExecutablePath);
+            Assert.Equal(extensionDir, vsCodeProduct.ExecutablePath);
             Assert.Equal("Antigravity for VS Code", vsCodeProduct.DisplayName);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void DoesNotTreatStandaloneAgyCliAsAnInstalledVsCodeExtension()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
+        var local = Path.Combine(root, "Local");
+        var roaming = Path.Combine(root, "Roaming");
+        var profile = Path.Combine(root, "Profile");
+        try
+        {
+            var agyPath = Path.Combine(profile, ".gemini", "bin", "agy.exe");
+            Directory.CreateDirectory(Path.GetDirectoryName(agyPath)!);
+            File.WriteAllBytes(agyPath, []);
+
+            var detector = new AntigravityInstallationDetector(local, roaming, profile);
+            var products = detector.Detect([]);
+
+            var vsCodeProduct = Assert.Single(products, product => product.Surface == AntigravitySurface.VsCode);
+            Assert.False(vsCodeProduct.Installed);
+            Assert.Null(vsCodeProduct.ExecutablePath);
         }
         finally
         {
@@ -107,7 +133,7 @@ public sealed class StorageAndDetectionTests
                 "Antigravity 2.0",
                 [],
                 [new QuotaGroup("Gemini Models", null, [])],
-                [new ModelAvailability("gemini", "Gemini", "Google", 0.5, null)],
+                [new ModelAvailability("gemini", "Gemini", "Google", 0.5, null, 1_048_576)],
                 "Live")
             {
                 ActiveModelId = "gemini"
@@ -120,8 +146,9 @@ public sealed class StorageAndDetectionTests
             Assert.NotNull(loaded);
             Assert.Single(loaded.Models);
             Assert.Equal("gemini", loaded.ActiveModelId);
+            Assert.Equal(1_048_576, loaded.Models[0].MaxTokens);
             Assert.DoesNotContain("csrf", content, StringComparison.OrdinalIgnoreCase);
-            Assert.DoesNotContain("token", content, StringComparison.OrdinalIgnoreCase);
+            Assert.DoesNotContain("x-codeium-csrf-token", content, StringComparison.OrdinalIgnoreCase);
         }
         finally
         {

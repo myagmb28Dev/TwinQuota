@@ -20,7 +20,7 @@ Antigravity for VS Code is enough for live quota and model discovery.
 - Uses a compact window instead of listing every account-available model.
 - Keeps the latest successful snapshot available while Antigravity is closed.
 - Lives in the Windows notification area and refreshes every 30 seconds.
-- Optionally shows the window only while an Antigravity 2.0, IDE, VS Code, or CLI window is open.
+- Optionally shows the window only while an Antigravity 2.0, IDE, active VS Code-family extension, or CLI window is open. VS Code, Cursor, Windsurf, and VSCodium windows count only while their installed Antigravity extension has a live `agy` descendant process.
 - Never reads or persists Google OAuth credentials.
 
 ## Requirements
@@ -84,10 +84,11 @@ Inno Setup installer under `artifacts\win-x64`.
    actually invoked `modelName`, conversation ID, and observation time.
 6. Prefer that invoked model over `defaultAgentModelId`, then discard unrelated
    model and quota groups.
-7. Read the active conversation's local transcript to estimate context usage;
-   transcript content and paths are not persisted.
-8. Discard the CSRF value and cache only display-safe quota/model data and the
-   derived context estimate.
+7. Read Antigravity's numeric `contextWindowMetadata` for the active conversation
+   through localhost RPC. On older builds, fall back to per-call usage metadata,
+   then to a local transcript estimate.
+8. Discard the CSRF value and raw RPC responses, then cache only display-safe
+   quota/model data and the derived numeric context totals.
 
 No request is sent directly to Google's private backend, and no OAuth token,
 cookie, prompt, transcript content or path, workspace path, or source file is persisted. See

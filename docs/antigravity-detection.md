@@ -8,7 +8,7 @@ Validated on Windows on 2026-08-25 against Antigravity 2.0 v2.10.0.
 | --- | --- | --- | --- |
 | Antigravity 2.0 | Per-user application path and uninstall registration | `language_server.exe` with `app_data_dir=antigravity` | No |
 | Antigravity IDE | Per-user IDE application path | `language_server_windows_x64.exe` with `app_data_dir=antigravity-ide` | No |
-| Antigravity for VS Code | VS Code extension directory and `~/.gemini/bin/agy.exe` | `agy.exe` with `--hub` / `language_server.exe` | No |
+| Antigravity for VS Code | Matching VS Code-family extension directory | `agy.exe` with `--hub` / `language_server.exe` | No |
 | Antigravity CLI | `agy.exe` on PATH or in the documented local install path | CLI language-server process when exposed | Only for CLI users |
 
 Local data without an executable is reported as a remnant, not as an installed
@@ -18,6 +18,12 @@ installation.
 For VS Code extension hub mode (`agy.exe --hub`), the live HTTP port is discovered
 from `--hub-port` or `cli-*.log`, and the CSRF token is obtained from the local hub
 app configuration served at `http://127.0.0.1:<port>/`.
+
+Window visibility detection treats VS Code, VS Code Insiders, Cursor, Windsurf,
+and VSCodium as Antigravity windows only when the matching editor has an
+Antigravity extension installed and an `agy` process is active below that
+editor's process tree. A standalone editor window or unrelated language server
+does not make TwinQuota appear.
 
 ## Live data path
 
@@ -37,10 +43,13 @@ observation time. The last invoked model takes precedence over the default ID;
 the RPC response still supplies display and quota metadata. Existing hook
 definitions are preserved.
 
-For the active conversation only, TwinQuota reads Antigravity's local transcript
-and estimates context usage from semantic payload fields after the latest
-checkpoint. The result is approximate because the hook does not expose an exact
-provider tokenizer count. Transcript content and paths are never persisted.
+For the active conversation only, TwinQuota first reads Antigravity's own numeric
+`contextWindowMetadata` through localhost RPC, including `estimatedTokensUsed`
+and `maxContextTokens`. The request excludes message bodies and only the numeric
+result is retained. Older servers fall back to the latest model-usage counters;
+if those are unavailable too, TwinQuota estimates semantic payload size from the
+local transcript after the latest checkpoint. Transcript content and paths are
+never persisted.
 
 The CSRF value exists only in memory for the duration of a refresh. It is never
 logged or included in `snapshot.json`.

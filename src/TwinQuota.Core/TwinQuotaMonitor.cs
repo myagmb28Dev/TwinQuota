@@ -1,3 +1,5 @@
+using System.Text.Json;
+
 namespace TwinQuota.Core;
 
 public sealed class TwinQuotaMonitor
@@ -37,17 +39,31 @@ public sealed class TwinQuotaMonitor
             {
                 var quotaTask = _rpcClient.GetQuotaSummaryAsync(endpoint, cancellationToken);
                 var modelsTask = _rpcClient.GetAvailableModelsAsync(endpoint, cancellationToken);
+                var observedModel = await _activeModelStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+                var contextUsageTask = observedModel?.ConversationId is { Length: > 0 } conversationId
+                    ? TryGetCurrentContextUsageAsync(endpoint, conversationId, cancellationToken)
+                    : Task.FromResult<ContextWindowUsage?>(null);
                 await Task.WhenAll(quotaTask, modelsTask).ConfigureAwait(false);
                 var quotaGroups = AntigravityResponseParser.ParseQuotaSummary(await quotaTask.ConfigureAwait(false));
                 var modelsJson = await modelsTask.ConfigureAwait(false);
-                var observedModel = await _activeModelStore.LoadAsync(cancellationToken).ConfigureAwait(false);
                 var modelResolution = ActiveModelResolver.Resolve(modelsJson, observedModel);
                 var models = modelResolution.Models;
                 var activeModel = modelResolution.ActiveModel;
 
-                var contextUsage = ContextUsageCalculator.Calculate(
-                    observedModel?.ConversationId,
-                    activeModel?.Id ?? observedModel?.ModelId);
+                var liveContextUsage = await contextUsageTask.ConfigureAwait(false);
+                var contextLimit = activeModel?.MaxTokens;
+                var contextUsage = liveContextUsage is { } liveUsage
+                    ? ContextUsage.Create(
+                        liveUsage.UsedTokens,
+                        liveUsage.MaxTokens is > 0
+                            ? liveUsage.MaxTokens.Value
+                            : contextLimit is > 0
+                                ? contextLimit.Value
+                            : ContextUsageCalculator.GetModelContextLimit(activeModel?.Id ?? observedModel?.ModelId))
+                    : ContextUsageCalculator.Calculate(
+                        observedModel?.ConversationId,
+                        activeModel?.Id ?? observedModel?.ModelId,
+                        modelContextLimit: contextLimit);
 
                 var snapshot = new TwinQuotaSnapshot(
                     DateTimeOffset.Now,
@@ -119,4 +135,20 @@ public sealed class TwinQuotaMonitor
         AntigravitySurface.VsCode => "Antigravity for VS Code",
         _ => "Antigravity"
     };
+
+    private async Task<ContextWindowUsage?> TryGetCurrentContextUsageAsync(
+        LanguageServerEndpoint endpoint,
+        string conversationId,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await _rpcClient.GetCurrentContextUsageAsync(endpoint, conversationId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (Exception exception) when (exception is HttpRequestException or IOException or JsonException or TaskCanceledException)
+        {
+            return null;
+        }
+    }
 }

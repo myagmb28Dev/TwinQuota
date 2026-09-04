@@ -60,6 +60,21 @@ public sealed class ContextUsageCalculatorTests
     }
 
     [Fact]
+    public void PrefersTheLiveModelContextLimitOverTheNameFallback()
+    {
+        const string transcript = """
+            {"step_index":0,"type":"USER_INPUT","content":"12345678"}
+            """;
+
+        var usage = ContextUsageCalculator.CalculateFromTranscriptContent(
+            transcript,
+            "gemini-3.8-flash-high",
+            1_048_576);
+
+        Assert.Equal(1_048_576, usage.MaxTokens);
+    }
+
+    [Fact]
     public void FormatsHoverTextWithSlashAndRemainingK()
     {
         var usage = ContextUsage.Create(45_200, 200_000);

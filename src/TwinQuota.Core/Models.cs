@@ -36,7 +36,16 @@ public sealed record ModelAvailability(
     string DisplayName,
     string Provider,
     double? RemainingFraction,
-    DateTimeOffset? ResetTime);
+    DateTimeOffset? ResetTime,
+    int? MaxTokens = null);
+
+public sealed record TrajectorySummary(int StepCount);
+
+public sealed record ContextWindowUsage(int UsedTokens, int? MaxTokens);
+
+public sealed record GeneratorMetadataPage(
+    int ItemCount,
+    ContextWindowUsage? LatestContextWindowUsage);
 
 public sealed record ContextUsage(
     int UsedTokens,
