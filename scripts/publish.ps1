@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [string]$Runtime = "win-x64",
+    [string]$Version,
     [switch]$NoRestore,
     [switch]$BuildInstaller
 )
@@ -29,6 +30,9 @@ $publishArguments = @(
     "-p:DebugType=None",
     "--output", $publishRoot
 )
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $publishArguments += "-p:Version=$Version"
+}
 if ($NoRestore) {
     $publishArguments += "--no-restore"
 }
@@ -49,6 +53,9 @@ $hookPublishArguments = @(
     "-p:DebugType=None",
     "--output", $publishRoot
 )
+if (-not [string]::IsNullOrWhiteSpace($Version)) {
+    $hookPublishArguments += "-p:Version=$Version"
+}
 if ($NoRestore) {
     $hookPublishArguments += "--no-restore"
 }
@@ -76,17 +83,20 @@ if ($BuildInstaller -or $isccPath) {
         throw "Inno Setup compiler (ISCC.exe) was not found."
     }
 
-    $version = (dotnet msbuild (Join-Path $repositoryRoot "src\TwinQuota.Windows\TwinQuota.Windows.csproj") -getProperty:Version).Trim()
-    if ([string]::IsNullOrWhiteSpace($version)) {
-        $version = "0.1.0"
+    $installerVersion = $Version
+    if ([string]::IsNullOrWhiteSpace($installerVersion)) {
+        $installerVersion = (dotnet msbuild (Join-Path $repositoryRoot "src\TwinQuota.Windows\TwinQuota.Windows.csproj") -getProperty:Version).Trim()
+    }
+    if ([string]::IsNullOrWhiteSpace($installerVersion)) {
+        $installerVersion = "0.2.0"
     }
 
     $issPath = Join-Path $PSScriptRoot "TwinQuota.iss"
-    Write-Host "Compiling Inno Setup installer for version $version..."
-    & $isccPath "/DMyAppVersion=$version" $issPath
+    Write-Host "Compiling Inno Setup installer for version $installerVersion..."
+    & $isccPath "/DMyAppVersion=$installerVersion" $issPath
     if ($LASTEXITCODE -ne 0) {
         throw "Inno Setup compilation failed with exit code $LASTEXITCODE."
     }
-    Write-Host "Installer: $(Join-Path $artifactsRoot "TwinQuota-Setup-v$version.exe")"
+    Write-Host "Installer: $(Join-Path $artifactsRoot "TwinQuota-Setup-v$installerVersion.exe")"
 }
 

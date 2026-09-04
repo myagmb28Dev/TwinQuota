@@ -87,7 +87,8 @@ public static class AntigravityResponseParser
                 displayName,
                 provider,
                 remaining is null ? null : Math.Clamp(remaining.Value, 0, 1),
-                resetTime));
+                resetTime,
+                GetPositiveInt32(model, "maxTokens")));
         }
 
         return models
@@ -237,7 +238,96 @@ public static class AntigravityResponseParser
             displayName,
             provider,
             remaining is null ? null : Math.Clamp(remaining.Value, 0, 1),
-            resetTime);
+            resetTime,
+            GetPositiveInt32(model, "maxTokens"));
+    }
+
+    public static TrajectorySummary? ParseTrajectorySummary(string json, string conversationId)
+    {
+        if (string.IsNullOrWhiteSpace(conversationId))
+        {
+            return null;
+        }
+
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetResponse(document.RootElement, out var response)
+            || !response.TryGetProperty("trajectorySummaries", out var summaries)
+            || summaries.ValueKind != JsonValueKind.Object
+            || !summaries.TryGetProperty(conversationId, out var summary)
+            || GetPositiveInt32(summary, "stepCount") is not { } stepCount)
+        {
+            return null;
+        }
+
+        return new TrajectorySummary(stepCount);
+    }
+
+    public static int? ParseLatestContextTokens(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetResponse(document.RootElement, out var response)
+            || !response.TryGetProperty("steps", out var steps)
+            || steps.ValueKind != JsonValueKind.Array)
+        {
+            return null;
+        }
+
+        long? latestContextTokens = null;
+        foreach (var step in steps.EnumerateArray())
+        {
+            if (!step.TryGetProperty("metadata", out var metadata)
+                || !metadata.TryGetProperty("modelUsage", out var usage)
+                || usage.ValueKind != JsonValueKind.Object)
+            {
+                continue;
+            }
+
+            var inputTokens = GetNonNegativeInt64(usage, "inputTokens");
+            var cacheReadTokens = GetNonNegativeInt64(usage, "cacheReadTokens") ?? 0;
+            var outputTokens = GetNonNegativeInt64(usage, "outputTokens");
+            if (inputTokens is null || outputTokens is null)
+            {
+                continue;
+            }
+
+            latestContextTokens = inputTokens.Value + cacheReadTokens + outputTokens.Value;
+        }
+
+        return latestContextTokens is null
+            ? null
+            : (int)Math.Min(latestContextTokens.Value, int.MaxValue);
+    }
+
+    public static GeneratorMetadataPage ParseGeneratorMetadataPage(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!TryGetResponse(document.RootElement, out var response)
+            || !response.TryGetProperty("generatorMetadata", out var items)
+            || items.ValueKind != JsonValueKind.Array)
+        {
+            return new GeneratorMetadataPage(0, null);
+        }
+
+        ContextWindowUsage? latest = null;
+        var itemCount = 0;
+        foreach (var item in items.EnumerateArray())
+        {
+            itemCount++;
+            if (!item.TryGetProperty("chatModel", out var chatModel)
+                || !chatModel.TryGetProperty("chatStartMetadata", out var chatStartMetadata)
+                || !chatStartMetadata.TryGetProperty("contextWindowMetadata", out var contextWindowMetadata)
+                || GetNonNegativeInt64(contextWindowMetadata, "estimatedTokensUsed") is not { } usedTokens
+                || GetPositiveInt32(contextWindowMetadata, "maxContextTokens") is not { } maxTokens)
+            {
+                continue;
+            }
+
+            latest = new ContextWindowUsage(
+                (int)Math.Min(usedTokens, int.MaxValue),
+                maxTokens);
+        }
+
+        return new GeneratorMetadataPage(itemCount, latest);
     }
 
     private static void CollectCliModels(JsonElement element, List<ModelAvailability> results)
@@ -347,9 +437,59 @@ public static class AntigravityResponseParser
             ? result
             : null;
 
+    private static int? GetPositiveInt32(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        var parsed = value.ValueKind switch
+        {
+            JsonValueKind.Number when value.TryGetInt32(out var numeric) => numeric,
+            JsonValueKind.String when int.TryParse(
+                value.GetString(),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var text) => text,
+            _ => 0
+        };
+        return parsed > 0 ? parsed : null;
+    }
+
+    private static long? GetNonNegativeInt64(JsonElement element, string propertyName)
+    {
+        if (!element.TryGetProperty(propertyName, out var value))
+        {
+            return null;
+        }
+
+        long parsed;
+        if (value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out parsed))
+        {
+            return parsed >= 0 ? parsed : null;
+        }
+
+        if (value.ValueKind == JsonValueKind.String
+            && long.TryParse(
+                value.GetString(),
+                System.Globalization.NumberStyles.None,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out parsed))
+        {
+            return parsed >= 0 ? parsed : null;
+        }
+
+        return null;
+    }
+
     private static DateTimeOffset? GetDateTimeOffset(JsonElement element, string propertyName) =>
         GetString(element, propertyName) is { } value
-        && DateTimeOffset.TryParse(value, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var result)
+        && DateTimeOffset.TryParse(
+            value,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var result)
             ? result
             : null;
 }

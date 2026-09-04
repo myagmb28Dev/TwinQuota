@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 
@@ -9,15 +10,18 @@ public sealed partial class LanguageServerEndpointDiscovery
     private readonly string _roamingAppData;
     private readonly string _userProfile;
     private readonly Func<CancellationToken, Task<string>> _processReader;
+    private readonly HttpClient _httpClient;
 
     public LanguageServerEndpointDiscovery(
         string? roamingAppData = null,
         string? userProfile = null,
-        Func<CancellationToken, Task<string>>? processReader = null)
+        Func<CancellationToken, Task<string>>? processReader = null,
+        HttpClient? httpClient = null)
     {
         _roamingAppData = roamingAppData ?? Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData);
         _userProfile = userProfile ?? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
         _processReader = processReader ?? ReadLanguageServerProcessesAsync;
+        _httpClient = httpClient ?? new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
     }
 
     public async Task<IReadOnlyList<LanguageServerEndpoint>> DiscoverAsync(CancellationToken cancellationToken)
@@ -36,13 +40,27 @@ public sealed partial class LanguageServerEndpointDiscovery
         var endpoints = new List<LanguageServerEndpoint>();
         foreach (var process in processes)
         {
-            if (!TryParseCommandLine(process.CommandLine, out var surface, out var csrfToken))
+            if (!TryParseCommandLine(process.CommandLine, out var surface, out var csrfToken, out var explicitPort))
             {
                 continue;
             }
 
-            var logPath = FindLogPath(surface);
-            if (logPath is null || !TryReadLatestHttpPort(logPath, out var port))
+            var port = explicitPort;
+            if (port <= 0)
+            {
+                var logPath = FindLogPath(surface);
+                if (logPath is null || !TryReadLatestHttpPort(logPath, out port))
+                {
+                    continue;
+                }
+            }
+
+            if (string.IsNullOrEmpty(csrfToken))
+            {
+                csrfToken = await TryFetchHubCsrfTokenAsync(port, cancellationToken).ConfigureAwait(false) ?? string.Empty;
+            }
+
+            if (string.IsNullOrEmpty(csrfToken))
             {
                 continue;
             }
@@ -93,17 +111,46 @@ public sealed partial class LanguageServerEndpointDiscovery
     public static bool TryParseCommandLine(
         string commandLine,
         out AntigravitySurface surface,
-        out string csrfToken)
+        out string csrfToken) =>
+        TryParseCommandLine(commandLine, out surface, out csrfToken, out _);
+
+    public static bool TryParseCommandLine(
+        string commandLine,
+        out AntigravitySurface surface,
+        out string csrfToken,
+        out int explicitPort)
     {
         surface = AntigravitySurface.Desktop2;
         csrfToken = string.Empty;
-        var csrf = CsrfRegex().Match(commandLine);
-        if (!csrf.Success)
+        explicitPort = 0;
+
+        if (string.IsNullOrWhiteSpace(commandLine))
         {
             return false;
         }
 
-        csrfToken = csrf.Groups[1].Success ? csrf.Groups[1].Value : csrf.Groups[2].Value;
+        var csrf = CsrfRegex().Match(commandLine);
+        if (csrf.Success)
+        {
+            csrfToken = csrf.Groups[1].Success ? csrf.Groups[1].Value : csrf.Groups[2].Value;
+        }
+
+        var hubPortMatch = HubPortRegex().Match(commandLine);
+        if (hubPortMatch.Success)
+        {
+            var portString = hubPortMatch.Groups[1].Success ? hubPortMatch.Groups[1].Value : hubPortMatch.Groups[2].Value;
+            if (int.TryParse(portString, out var parsedPort) && parsedPort is > 0 and <= 65535)
+            {
+                explicitPort = parsedPort;
+            }
+        }
+
+        var isHub = HubFlagRegex().IsMatch(commandLine);
+        if (!csrf.Success && !isHub)
+        {
+            return false;
+        }
+
         var appData = AppDataRegex().Match(commandLine);
         var appDataValue = appData.Success
             ? (appData.Groups[1].Success ? appData.Groups[1].Value : appData.Groups[2].Value)
@@ -114,12 +161,42 @@ public sealed partial class LanguageServerEndpointDiscovery
             : string.Empty;
         var identity = $"{appDataValue} {subclientValue}".ToLowerInvariant();
 
-        surface = identity.Contains("ide", StringComparison.Ordinal)
-            ? AntigravitySurface.Ide
-            : identity.Contains("cli", StringComparison.Ordinal) || identity.Contains("agy", StringComparison.Ordinal)
-                ? AntigravitySurface.Cli
-                : AntigravitySurface.Desktop2;
-        return csrfToken.Length > 0;
+        if (isHub || identity.Contains("vscode", StringComparison.Ordinal) || identity.Contains("vs-code", StringComparison.Ordinal))
+        {
+            surface = AntigravitySurface.VsCode;
+        }
+        else if (identity.Contains("ide", StringComparison.Ordinal))
+        {
+            surface = AntigravitySurface.Ide;
+        }
+        else if (identity.Contains("cli", StringComparison.Ordinal) || identity.Contains("agy", StringComparison.Ordinal))
+        {
+            surface = AntigravitySurface.Cli;
+        }
+        else
+        {
+            surface = AntigravitySurface.Desktop2;
+        }
+
+        return true;
+    }
+
+    public static bool TryExtractCsrfTokenFromHtml(string html, out string csrfToken)
+    {
+        csrfToken = string.Empty;
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return false;
+        }
+
+        var match = HtmlCsrfTokenRegex().Match(html);
+        if (match.Success)
+        {
+            csrfToken = match.Groups[1].Value;
+            return true;
+        }
+
+        return false;
     }
 
     public static bool TryReadLatestHttpPort(string logPath, out int port)
@@ -159,6 +236,26 @@ public sealed partial class LanguageServerEndpointDiscovery
         results.Add((processId, commandLine));
     }
 
+    private async Task<string?> TryFetchHubCsrfTokenAsync(int port, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"http://127.0.0.1:{port}/");
+            using var response = await _httpClient.SendAsync(request, cancellationToken).ConfigureAwait(false);
+            if (!response.IsSuccessStatusCode)
+            {
+                return null;
+            }
+
+            var html = await response.Content.ReadAsStringAsync(cancellationToken).ConfigureAwait(false);
+            return TryExtractCsrfTokenFromHtml(html, out var token) ? token : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private string? FindLogPath(AntigravitySurface surface)
     {
         if (surface == AntigravitySurface.Desktop2)
@@ -172,17 +269,25 @@ public sealed partial class LanguageServerEndpointDiscovery
             return FindNewestFile(logsRoot, "ls-main.log");
         }
 
+        if (surface == AntigravitySurface.VsCode)
+        {
+            var logsRoot = Path.Combine(_userProfile, ".gemini", "antigravity", "log");
+            return FindNewestFile(logsRoot, "*.log")
+                ?? ExistingFile(Path.Combine(_roamingAppData, "Antigravity", "logs", "language_server.log"));
+        }
+
         var candidates = new[]
         {
             Path.Combine(_roamingAppData, "Antigravity CLI", "logs", "language_server.log"),
-            Path.Combine(_userProfile, ".gemini", "antigravity-cli", "logs", "language_server.log")
+            Path.Combine(_userProfile, ".gemini", "antigravity-cli", "logs", "language_server.log"),
+            FindNewestFile(Path.Combine(_userProfile, ".gemini", "antigravity", "log"), "*.log")
         };
         return candidates.Select(ExistingFile).FirstOrDefault(path => path is not null);
     }
 
-    private static string? ExistingFile(string path) => File.Exists(path) ? path : null;
+    private static string? ExistingFile(string? path) => path is not null && File.Exists(path) ? path : null;
 
-    private static string? FindNewestFile(string root, string fileName)
+    private static string? FindNewestFile(string root, string pattern)
     {
         if (!Directory.Exists(root))
         {
@@ -191,7 +296,7 @@ public sealed partial class LanguageServerEndpointDiscovery
 
         try
         {
-            return Directory.EnumerateFiles(root, fileName, SearchOption.AllDirectories)
+            return Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
                 .Select(path => new FileInfo(path))
                 .OrderByDescending(file => file.LastWriteTimeUtc)
                 .Select(file => file.FullName)
@@ -211,7 +316,7 @@ public sealed partial class LanguageServerEndpointDiscovery
             "v1.0",
             "powershell.exe");
         var script = "$ErrorActionPreference='Stop'; @(Get-CimInstance Win32_Process | "
-            + "Where-Object { $_.Name -in @('language_server.exe','language_server_windows_x64.exe') } | "
+            + "Where-Object { $_.Name -in @('language_server.exe','language_server_windows_x64.exe','agy.exe','agy') } | "
             + "Select-Object ProcessId,CommandLine) | ConvertTo-Json -Compress";
         var startInfo = new ProcessStartInfo
         {
@@ -236,6 +341,12 @@ public sealed partial class LanguageServerEndpointDiscovery
     [GeneratedRegex("--csrf_token\\s+(?:\"([^\"]+)\"|(\\S+))", RegexOptions.IgnoreCase)]
     private static partial Regex CsrfRegex();
 
+    [GeneratedRegex("--hub-port(?:=|\\s+)(?:\"([^\"]+)\"|(\\d+))", RegexOptions.IgnoreCase)]
+    private static partial Regex HubPortRegex();
+
+    [GeneratedRegex("(?:^|\\s)--hub(?:\\s|$)", RegexOptions.IgnoreCase)]
+    private static partial Regex HubFlagRegex();
+
     [GeneratedRegex("--app_data_dir\\s+(?:\"([^\"]+)\"|(\\S+))", RegexOptions.IgnoreCase)]
     private static partial Regex AppDataRegex();
 
@@ -244,4 +355,7 @@ public sealed partial class LanguageServerEndpointDiscovery
 
     [GeneratedRegex("random port at (\\d+) for HTTP", RegexOptions.IgnoreCase)]
     private static partial Regex HttpPortRegex();
+
+    [GeneratedRegex("\"csrfToken\"\\s*:\\s*\"([^\"]+)\"", RegexOptions.IgnoreCase)]
+    private static partial Regex HtmlCsrfTokenRegex();
 }

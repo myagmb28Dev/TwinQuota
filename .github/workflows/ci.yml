@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -60,6 +63,7 @@ jobs:
 
   release:
     name: Package and Release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: windows-latest
     needs: [build, test]
     timeout-minutes: 20
@@ -85,19 +89,38 @@ jobs:
         id: project_version
         shell: pwsh
         run: |
-          $rawVersion = (dotnet msbuild .\src\TwinQuota.Windows\TwinQuota.Windows.csproj -getProperty:Version).Trim()
-          if ([string]::IsNullOrWhiteSpace($rawVersion)) {
-            $rawVersion = "0.1.0"
+          $baseVersion = (dotnet msbuild .\src\TwinQuota.Windows\TwinQuota.Windows.csproj -getProperty:Version).Trim()
+          if ($baseVersion -notmatch '^(?<major>\d+)\.(?<minor>\d+)\.\d+(?:[-+].*)?$') {
+            throw "Project version '$baseVersion' is not a supported semantic version."
           }
-          Write-Host "Resolved project version: $rawVersion"
-          "version=$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
-          "tag=v$rawVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+          Write-Host "Resolved release version: $baseVersion"
+          "version=$baseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=v$baseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Check whether release already exists
+        id: release_state
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.project_version.outputs.tag }}
+        run: |
+          gh release view $env:RELEASE_TAG --json tagName 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:RELEASE_TAG already exists; leaving it unchanged."
+            "should_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          } else {
+            Write-Host "Release $env:RELEASE_TAG does not exist; it will be created."
+            "should_release=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          }
 
       - name: Package Windows app and build installer
+        if: steps.release_state.outputs.should_release == 'true'
         shell: pwsh
-        run: .\scripts\publish.ps1 -BuildInstaller
+        run: .\scripts\publish.ps1 -BuildInstaller -Version "${{ steps.project_version.outputs.version }}"
 
       - name: Upload Windows installer artifact
+        if: steps.release_state.outputs.should_release == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: TwinQuota-Setup
@@ -105,7 +128,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Create or update GitHub Release
+      - name: Create GitHub Release
+        if: steps.release_state.outputs.should_release == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -114,20 +138,7 @@ jobs:
           SETUP_EXE_PATH: artifacts/win-x64/TwinQuota-Setup-v${{ steps.project_version.outputs.version }}.exe
         run: |
           Write-Host "Target release tag: $env:RELEASE_TAG"
-          $releaseJson = $null
-          try {
-            $releaseJson = gh release view $env:RELEASE_TAG --json tagName 2>$null
-          } catch {
-            $releaseJson = $null
-          }
-
-          if ($LASTEXITCODE -eq 0 -and $releaseJson) {
-            Write-Host "Release $env:RELEASE_TAG exists. Updating release asset..."
-            gh release upload $env:RELEASE_TAG $env:SETUP_EXE_PATH --clobber
-          } else {
-            Write-Host "Creating new GitHub Release $env:RELEASE_TAG..."
-            gh release create $env:RELEASE_TAG $env:SETUP_EXE_PATH --title "$env:RELEASE_TITLE" --generate-notes
-          }
+          gh release create $env:RELEASE_TAG $env:SETUP_EXE_PATH --title "$env:RELEASE_TITLE" --generate-notes
 
 
 

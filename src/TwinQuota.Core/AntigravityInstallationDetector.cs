@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json;
 using Microsoft.Win32;
 
 namespace TwinQuota.Core;
@@ -29,6 +30,7 @@ public sealed class AntigravityInstallationDetector
             Path.Combine(ideDirectory, "Antigravity.exe")
         }.FirstOrDefault(File.Exists);
         var cliPath = FindCliPath();
+        var vsCodeInfo = FindVsCodeExtension();
 
         return
         [
@@ -52,6 +54,13 @@ public sealed class AntigravityInstallationDetector
                 cliPath,
                 Directory.Exists(Path.Combine(_userProfile, ".gemini", "antigravity-cli")),
                 ReadFileVersion(cliPath),
+                endpoints),
+            CreateStatus(
+                AntigravitySurface.VsCode,
+                "Antigravity for VS Code",
+                vsCodeInfo.ExecutablePath,
+                Directory.Exists(Path.Combine(_userProfile, ".gemini", "antigravity")),
+                vsCodeInfo.Version,
                 endpoints)
         ];
     }
@@ -157,5 +166,74 @@ public sealed class AntigravityInstallationDetector
         {
             return null;
         }
+    }
+
+    private (string? ExtensionPath, string? Version, string? ExecutablePath) FindVsCodeExtension()
+    {
+        var extensionRoots = new[]
+        {
+            Path.Combine(_userProfile, ".vscode", "extensions"),
+            Path.Combine(_userProfile, ".vscode-insiders", "extensions"),
+            Path.Combine(_userProfile, ".cursor", "extensions"),
+            Path.Combine(_userProfile, ".windsurf", "extensions"),
+            Path.Combine(_userProfile, ".vscode-oss", "extensions"),
+            Path.Combine(_userProfile, ".vscodium", "extensions")
+        };
+
+        string? foundExtensionPath = null;
+        string? foundVersion = null;
+
+        foreach (var root in extensionRoots)
+        {
+            if (!Directory.Exists(root))
+            {
+                continue;
+            }
+
+            try
+            {
+                var match = Directory.EnumerateDirectories(root, "google.google-antigravity*")
+                    .Concat(Directory.EnumerateDirectories(root, "google.antigravity*"))
+                    .OrderByDescending(dir => Directory.GetLastWriteTimeUtc(dir))
+                    .FirstOrDefault();
+
+                if (match is not null)
+                {
+                    foundExtensionPath = match;
+                    foundVersion = ReadExtensionPackageVersion(Path.Combine(match, "package.json"));
+                    break;
+                }
+            }
+            catch
+            {
+                // Ignore directory enumeration issues.
+            }
+        }
+
+        return (foundExtensionPath, foundVersion, foundExtensionPath);
+    }
+
+    private static string? ReadExtensionPackageVersion(string packageJsonPath)
+    {
+        if (!File.Exists(packageJsonPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var stream = File.OpenRead(packageJsonPath);
+            using var document = JsonDocument.Parse(stream);
+            if (document.RootElement.TryGetProperty("version", out var versionElement))
+            {
+                return versionElement.GetString();
+            }
+        }
+        catch
+        {
+            // Ignore package JSON reading issues.
+        }
+
+        return null;
     }
 }

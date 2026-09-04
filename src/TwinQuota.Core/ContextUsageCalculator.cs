@@ -35,7 +35,8 @@ public static class ContextUsageCalculator
     public static ContextUsage? Calculate(
         string? conversationId,
         string? modelId,
-        string? userProfile = null)
+        string? userProfile = null,
+        int? modelContextLimit = null)
     {
         var resolvedPath = ResolveTranscriptPath(conversationId, userProfile);
         if (resolvedPath is null)
@@ -48,7 +49,7 @@ public static class ContextUsageCalculator
             using var stream = new FileStream(resolvedPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var reader = new StreamReader(stream);
             var content = reader.ReadToEnd();
-            return CalculateFromTranscriptContent(content, modelId);
+            return CalculateFromTranscriptContent(content, modelId, modelContextLimit);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -56,9 +57,14 @@ public static class ContextUsageCalculator
         }
     }
 
-    public static ContextUsage CalculateFromTranscriptContent(string transcriptContent, string? modelId)
+    public static ContextUsage CalculateFromTranscriptContent(
+        string transcriptContent,
+        string? modelId,
+        int? modelContextLimit = null)
     {
-        var maxTokens = GetModelContextLimit(modelId);
+        var maxTokens = modelContextLimit is > 0
+            ? modelContextLimit.Value
+            : GetModelContextLimit(modelId);
         if (string.IsNullOrWhiteSpace(transcriptContent))
         {
             return ContextUsage.Create(0, maxTokens);

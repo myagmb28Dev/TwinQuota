@@ -335,13 +335,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private void ApplySnapshot(TwinQuotaSnapshot snapshot)
     {
         _lastSnapshot = snapshot;
+        var now = DateTimeOffset.Now;
         var activeModel = snapshot.ActiveModelId is { Length: > 0 } activeId
             ? snapshot.Models.FirstOrDefault(model => model.Id.Equals(activeId, StringComparison.OrdinalIgnoreCase))
             : snapshot.Models.Count == 1
                 ? snapshot.Models[0]
                 : null;
         ActiveModelName = activeModel?.DisplayName ?? "No active model";
-        PopulateQuotas(Quotas, snapshot, activeModel);
+        PopulateQuotas(Quotas, snapshot, activeModel, now);
 
         var contextUsage = snapshot.ContextUsage;
         if (contextUsage is not null)
@@ -370,7 +371,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             if (GetModelKey(family) == _expandedModelKey)
             {
                 row.DetailVisibility = Visibility.Visible;
-                PopulateQuotas(row.Quotas, snapshot, SelectRepresentative(family));
+                PopulateQuotas(row.Quotas, snapshot, SelectRepresentative(family), now);
             }
 
             AvailableModels.Add(row);
@@ -390,7 +391,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private static void PopulateQuotas(
         ObservableCollection<QuotaRow> destination,
         TwinQuotaSnapshot snapshot,
-        ModelAvailability? model)
+        ModelAvailability? model,
+        DateTimeOffset now)
     {
         destination.Clear();
         var selectedBuckets = ActiveQuotaSelector
@@ -402,7 +404,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         foreach (var bucket in selectedBuckets)
         {
-            AddQuota(destination, bucket);
+            AddQuota(destination, bucket, now);
         }
 
         if (destination.Count == 0 && model?.RemainingFraction is double remainingFraction)
@@ -413,11 +415,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 string.Empty,
                 remainingFraction,
                 model.ResetTime,
-                null));
+                null), now);
         }
     }
 
-    private static void AddQuota(ObservableCollection<QuotaRow> destination, QuotaBucket bucket)
+    private static void AddQuota(
+        ObservableCollection<QuotaRow> destination,
+        QuotaBucket bucket,
+        DateTimeOffset now)
     {
         var remainingPercent = Math.Clamp(bucket.RemainingFraction * 100, 0, 100);
         var usedPercent = 100 - remainingPercent;
@@ -425,7 +430,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             FormatWindowName(bucket),
             remainingPercent,
             $"{remainingPercent:0.#}%",
-            $"Used {usedPercent:0.#}%, {FormatReset(bucket.ResetTime)}",
+            $"Used {usedPercent:0.#}%, {QuotaDisplayFormatter.FormatReset(bucket.ResetTime, now)}",
             QuotaBrush(remainingPercent)));
     }
 
@@ -483,7 +488,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        PopulateQuotas(row.Quotas, _lastSnapshot, SelectRepresentative(row.Family));
+        PopulateQuotas(row.Quotas, _lastSnapshot, SelectRepresentative(row.Family), DateTimeOffset.Now);
         row.DetailVisibility = Visibility.Visible;
     }
 
@@ -660,6 +665,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         IntPtr longParameter,
         ref bool handled)
     {
+        if (message == WmNcCalcSize)
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
         if (message != WmNcHitTest || WindowState != WindowState.Normal ||
             !GetWindowRect(windowHandle, out var windowRect))
         {
@@ -798,32 +809,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         return identity.Contains("week", StringComparison.OrdinalIgnoreCase);
     }
 
-    private static string FormatReset(DateTimeOffset? resetTime)
-    {
-        if (resetTime is null)
-        {
-            return "reset time unknown";
-        }
-
-        var remaining = resetTime.Value - DateTimeOffset.Now;
-        if (remaining <= TimeSpan.Zero)
-        {
-            return "reset due";
-        }
-
-        if (remaining.TotalDays >= 1)
-        {
-            return $"resets in {(int)remaining.TotalDays}d";
-        }
-
-        if (remaining.TotalHours >= 1)
-        {
-            return $"resets in {(int)remaining.TotalHours}h {remaining.Minutes}m";
-        }
-
-        return $"resets in {Math.Max(1, remaining.Minutes)}m";
-    }
-
     private static MediaBrush QuotaBrush(double percent) => percent switch
     {
         < 15 => BrushFrom("#FF7B8B"),
@@ -905,6 +890,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool GetWindowRect(IntPtr windowHandle, out NativeRect rectangle);
     #pragma warning restore SYSLIB1054
+
+    private const int WmNcCalcSize = 0x0083;
 
     [StructLayout(LayoutKind.Sequential)]
     private struct NativeRect
