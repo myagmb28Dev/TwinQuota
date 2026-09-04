@@ -106,7 +106,9 @@ jobs:
           RELEASE_TAG: ${{ steps.project_version.outputs.tag }}
         run: |
           gh release view $env:RELEASE_TAG --json tagName 2>$null | Out-Null
-          if ($LASTEXITCODE -eq 0) {
+          $releaseExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($releaseExists) {
             Write-Host "Release $env:RELEASE_TAG already exists; leaving it unchanged."
             "should_release=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
           } else {
