@@ -1,0 +1,98 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, for example 0.2.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and Release
+    if: github.ref == 'refs/heads/main'
+    runs-on: windows-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Validate release version
+        id: release_version
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          $releaseVersion = $env:RELEASE_VERSION.Trim()
+          if ($releaseVersion -notmatch '^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$') {
+            throw "Release version '$releaseVersion' is not a supported semantic version."
+          }
+
+          "version=$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "tag=v$releaseVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Reject an existing release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
+        run: |
+          gh release view $env:RELEASE_TAG --json tagName 2>$null | Out-Null
+          $releaseExists = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($releaseExists) {
+            throw "Release $env:RELEASE_TAG already exists. Choose a new version."
+          }
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: dotnet restore .\TwinQuota.slnx -p:NuGetAudit=false
+
+      - name: Build solution
+        shell: pwsh
+        run: dotnet build .\TwinQuota.slnx --configuration Release --no-restore
+
+      - name: Run unit tests
+        shell: pwsh
+        run: dotnet test .\tests\TwinQuota.Core.Tests\TwinQuota.Core.Tests.csproj --configuration Release --no-build
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --no-progress
+
+      - name: Package Windows app and build installer
+        shell: pwsh
+        run: .\scripts\publish.ps1 -BuildInstaller -Version "${{ steps.release_version.outputs.version }}"
+
+      - name: Upload Windows installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TwinQuota-Setup-v${{ steps.release_version.outputs.version }}
+          path: artifacts/win-x64/TwinQuota-Setup-v${{ steps.release_version.outputs.version }}.exe
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_version.outputs.tag }}
+          RELEASE_TITLE: TwinQuota ${{ steps.release_version.outputs.tag }}
+          SETUP_EXE_PATH: artifacts/win-x64/TwinQuota-Setup-v${{ steps.release_version.outputs.version }}.exe
+        run: gh release create $env:RELEASE_TAG $env:SETUP_EXE_PATH --target main --title "$env:RELEASE_TITLE" --generate-notes
