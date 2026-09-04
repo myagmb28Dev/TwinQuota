@@ -74,6 +74,10 @@ snapshot. The tray menu only provides Exit; window visibility follows the saved
 The command creates a single-file, framework-dependent Windows executable and an
 Inno Setup installer under `artifacts\win-x64`.
 
+GitHub CI runs automatically for pull requests and `main` pushes. Releases are
+separate: run the `Release` workflow from `main` and enter an explicit semantic
+version such as `0.2.0`. An existing release version is never overwritten.
+
 ## How collection works
 
 1. Detect installed products and running Antigravity language servers.
