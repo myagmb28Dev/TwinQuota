@@ -97,6 +97,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
+        _refreshTimer.Start();
         _windowDetectionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _windowDetectionTimer.Tick += (_, _) => UpdateAntigravityWindowPresence();
         _windowDetectionTimer.Start();
@@ -131,9 +132,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             UpdateSidebarScale();
             SidebarSensorPopup.IsOpen = true;
-            _refreshTimer.Start();
-            await RefreshAsync();
+            if (_lastSnapshot is null)
+            {
+                await RefreshAsync();
+            }
         };
+
+        _ = RefreshAsync();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -307,6 +312,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ActiveModelName = "Unable to refresh";
             StatusTextChanged?.Invoke(this, "TwinQuota · Unable to refresh");
+            _miniWindow?.SetErrorState("Unable to refresh");
         }
         finally
         {
@@ -469,8 +475,22 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ResetPendingSettings();
         SidebarPopup.IsOpen = false;
         SidebarSensorPopup.IsOpen = false;
+        if (!_refreshTimer.IsEnabled)
+        {
+            _refreshTimer.Start();
+        }
+
         var mini = MiniWindow;
-        mini.UpdateSnapshot(_lastSnapshot);
+        if (_lastSnapshot is not null)
+        {
+            mini.UpdateSnapshot(_lastSnapshot);
+        }
+        else
+        {
+            mini.SetLoadingState(_activeModelName);
+            _ = RefreshAsync();
+        }
+
         mini.Show();
         mini.Activate();
         Hide();
@@ -489,6 +509,15 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         Activate();
         SidebarSensorPopup.IsOpen = true;
         SaveWindowSize();
+        if (!_refreshTimer.IsEnabled)
+        {
+            _refreshTimer.Start();
+        }
+
+        if (_lastSnapshot is null)
+        {
+            _ = RefreshAsync();
+        }
     }
 
     private void MiniModeButton_Click(object sender, RoutedEventArgs e) => SwitchToMiniMode();

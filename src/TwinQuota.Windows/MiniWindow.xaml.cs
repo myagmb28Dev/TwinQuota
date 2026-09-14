@@ -22,7 +22,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
 {
     private readonly MiniWindowStateStore _stateStore = new();
     private readonly DispatcherTimer _locationSaveTimer;
-    private string _modelName = "TwinQuota";
+    private string _modelName = "Looking for an active model…";
     private string _resetTimeText = string.Empty;
     private Visibility _resetTimeVisibility = Visibility.Collapsed;
     private string _displayContextText = string.Empty;
@@ -37,6 +37,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     {
         InitializeComponent();
         DataContext = this;
+        SetLoadingState();
 
         _locationSaveTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(300) };
         _locationSaveTimer.Tick += (_, _) =>
@@ -55,6 +56,38 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         };
 
         Loaded += (_, _) => RestoreSavedLocation();
+    }
+
+    public void SetLoadingState(string? placeholder = null)
+    {
+        ModelName = string.IsNullOrWhiteSpace(placeholder)
+            ? "Looking for an active model…"
+            : placeholder;
+        ResetTimeText = string.Empty;
+        ResetTimeVisibility = Visibility.Collapsed;
+        ContextVisibility = Visibility.Collapsed;
+        QuotaItems.Clear();
+        QuotaItems.Add(new MiniQuotaItem(
+            "Quota",
+            100,
+            "...",
+            BrushFrom("#2D374D"),
+            "Loading quota…"));
+    }
+
+    public void SetErrorState(string message)
+    {
+        ModelName = message;
+        ResetTimeText = string.Empty;
+        ResetTimeVisibility = Visibility.Collapsed;
+        ContextVisibility = Visibility.Collapsed;
+        QuotaItems.Clear();
+        QuotaItems.Add(new MiniQuotaItem(
+            "Quota",
+            0,
+            "-",
+            BrushFrom("#FF7B8B"),
+            message));
     }
 
     public event EventHandler? RestoreNormalModeRequested;
