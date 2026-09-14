@@ -53,6 +53,9 @@ public partial class App : System.Windows.Application
         };
 
         var menu = new Forms.ContextMenuStrip();
+        menu.Items.Add("Normal mode", null, (_, _) => Dispatcher.Invoke(() => _mainWindow?.SwitchToNormalMode()));
+        menu.Items.Add("Mini mode", null, (_, _) => Dispatcher.Invoke(() => _mainWindow?.SwitchToMiniMode()));
+        menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add("Exit", null, (_, _) => Dispatcher.Invoke(ExitApplication));
 
         _applicationIcon = LoadApplicationIcon();
@@ -63,6 +66,24 @@ public partial class App : System.Windows.Application
             Visible = true,
             ContextMenuStrip = menu
         };
+        _notifyIcon.DoubleClick += (_, _) => Dispatcher.Invoke(() =>
+        {
+            if (_mainWindow is null)
+            {
+                return;
+            }
+
+            if (_mainWindow.IsMiniModeActive)
+            {
+                _mainWindow.SwitchToNormalMode();
+            }
+            else
+            {
+                _mainWindow.Show();
+                _mainWindow.WindowState = WindowState.Normal;
+                _mainWindow.Activate();
+            }
+        });
 
         if (_mainWindow.ShouldShowOnStartup)
         {

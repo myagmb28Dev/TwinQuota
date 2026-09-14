@@ -28,4 +28,28 @@ public sealed class QuotaDisplayFormatterTests
     {
         Assert.Equal("reset due", QuotaDisplayFormatter.FormatReset(Now.AddSeconds(-1), Now));
     }
+
+    [Theory]
+    [InlineData(5, 7, "↻ 5.3d")]
+    [InlineData(1, 0, "↻ 1d")]
+    [InlineData(0, 12, "↻ 12h")]
+    public void FormatsCompactMiniReset(int days, int hours, string expected)
+    {
+        var resetTime = Now.AddDays(days).AddHours(hours);
+        Assert.Equal(expected, QuotaDisplayFormatter.FormatMiniReset(resetTime, Now));
+    }
+
+    [Fact]
+    public void FormatsMinuteMiniReset()
+    {
+        var resetTime = Now.AddMinutes(45);
+        Assert.Equal("↻ 45m", QuotaDisplayFormatter.FormatMiniReset(resetTime, Now));
+    }
+
+    [Fact]
+    public void FormatsElapsedMiniReset()
+    {
+        Assert.Equal("↻ reset", QuotaDisplayFormatter.FormatMiniReset(Now.AddSeconds(-1), Now));
+        Assert.Equal(string.Empty, QuotaDisplayFormatter.FormatMiniReset(null, Now));
+    }
 }

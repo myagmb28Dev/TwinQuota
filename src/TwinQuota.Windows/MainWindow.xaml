@@ -278,6 +278,10 @@
                             </StackPanel>
                         </Border>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button ToolTip="Mini mode"
+                                    Background="#8B7CFF"
+                                    Style="{StaticResource WindowControlButtonStyle}"
+                                    Click="MiniModeButton_Click" />
                             <Button ToolTip="Minimize"
                                     Background="#FFBF3F"
                                     Style="{StaticResource WindowControlButtonStyle}"
@@ -544,7 +548,7 @@
 
         <Border x:Name="SidebarHoverZone"
                 Width="12"
-                Height="174"
+                Height="228"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Top"
                 Margin="0,50,0,0"
@@ -587,6 +591,11 @@
                             Background="{Binding SettingsTabBackground}"
                             Style="{StaticResource NavButtonStyle}"
                             Click="SettingsTab_Click" />
+                    <Button Content="🗗"
+                            ToolTip="Mini mode"
+                            Background="#151B2E"
+                            Style="{StaticResource NavButtonStyle}"
+                            Click="MiniModeTab_Click" />
                 </StackPanel>
             </Border>
         </Popup>
@@ -600,7 +609,7 @@
                StaysOpen="True">
             <Border x:Name="SidebarSensor"
                     Width="74"
-                    Height="174"
+                    Height="228"
                     Background="#01000000"
                     MouseEnter="SidebarSensor_MouseEnter"
                     MouseLeave="SidebarSensor_MouseLeave" />

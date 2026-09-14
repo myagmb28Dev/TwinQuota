@@ -44,6 +44,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _sizeSaveTimer;
     private readonly DispatcherTimer _sidebarCloseTimer;
     private readonly WindowSizeStore _windowSizeStore = new();
+    private MiniWindow? _miniWindow;
     private HwndSource? _windowSource;
     private bool _refreshing;
     private bool _hasAntigravityWindow;
@@ -146,6 +147,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _refreshTimer.Stop();
         _windowDetectionTimer.Stop();
+        _miniWindow?.Close();
+        _miniWindow = null;
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
         base.OnClosed(e);
@@ -386,6 +389,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? $"TwinQuota · {activeModel.DisplayName}"
                 : $"TwinQuota · {activeModel.DisplayName} {firstQuota.RemainingText}";
         StatusTextChanged?.Invoke(this, trayStatus);
+        _miniWindow?.UpdateSnapshot(snapshot);
     }
 
     private static void PopulateQuotas(
@@ -432,6 +436,58 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             $"{remainingPercent:0.#}%",
             $"Used {usedPercent:0.#}%, {QuotaDisplayFormatter.FormatReset(bucket.ResetTime, now)}",
             QuotaBrush(remainingPercent)));
+    }
+
+    public MiniWindow MiniWindow => _miniWindow ??= CreateMiniWindow();
+
+    public bool IsMiniModeActive => _miniWindow is { IsVisible: true };
+
+    private MiniWindow CreateMiniWindow()
+    {
+        var mini = new MiniWindow();
+        mini.RestoreNormalModeRequested += (_, _) => SwitchToNormalMode();
+        mini.ExitRequested += (_, _) =>
+        {
+            if (System.Windows.Application.Current is App app)
+            {
+                app.ExitApplication();
+            }
+        };
+        return mini;
+    }
+
+    public void SwitchToMiniMode()
+    {
+        SaveWindowSize();
+        ResetPendingSettings();
+        SidebarPopup.IsOpen = false;
+        SidebarSensorPopup.IsOpen = false;
+        Hide();
+        var mini = MiniWindow;
+        mini.UpdateSnapshot(_lastSnapshot);
+        mini.Show();
+        mini.Activate();
+    }
+
+    public void SwitchToNormalMode()
+    {
+        _miniWindow?.Hide();
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        SidebarSensorPopup.IsOpen = true;
+    }
+
+    private void MiniModeButton_Click(object sender, RoutedEventArgs e) => SwitchToMiniMode();
+
+    private void MiniModeTab_Click(object sender, RoutedEventArgs e)
+    {
+        SidebarPopup.IsOpen = false;
+        SwitchToMiniMode();
     }
 
     private void HomeTab_Click(object sender, RoutedEventArgs e)
@@ -537,12 +593,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SidebarPopup.VerticalOffset = 50 * scale;
 
         SidebarSensor.Width = 74 * scale;
-        SidebarSensor.Height = 174 * scale;
+        SidebarSensor.Height = 228 * scale;
         SidebarSensorPopup.HorizontalOffset = -62 * scale;
         SidebarSensorPopup.VerticalOffset = 50 * scale;
 
         SidebarHoverZone.Width = 12 * scale;
-        SidebarHoverZone.Height = 174 * scale;
+        SidebarHoverZone.Height = 228 * scale;
         SidebarHoverZone.Margin = new Thickness(0, 50 * scale, 0, 0);
     }
 
@@ -582,6 +638,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (isAntigravityForeground)
         {
+            if (IsMiniModeActive)
+            {
+                return;
+            }
+
             if (!IsVisible)
             {
                 ShowForAntigravityWindow();
@@ -632,6 +693,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void HideIfFocusMovedOutsideAntigravity(bool isAntigravityForeground)
     {
+        if (IsMiniModeActive)
+        {
+            return;
+        }
+
         if (!_savedShowOnlyWhenAntigravityWindowIsOpen || !IsVisible || IsActive ||
             _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess() ||
             isAntigravityForeground)
