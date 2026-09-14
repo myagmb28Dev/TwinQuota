@@ -278,10 +278,6 @@
                             </StackPanel>
                         </Border>
                         <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button ToolTip="Mini mode"
-                                    Background="#8B7CFF"
-                                    Style="{StaticResource WindowControlButtonStyle}"
-                                    Click="MiniModeButton_Click" />
                             <Button ToolTip="Minimize"
                                     Background="#FFBF3F"
                                     Style="{StaticResource WindowControlButtonStyle}"
