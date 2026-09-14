@@ -87,8 +87,15 @@ public partial class App : System.Windows.Application
 
         if (_mainWindow.ShouldShowOnStartup)
         {
-            _mainWindow.Show();
-            _mainWindow.Activate();
+            if (_mainWindow.StartInMiniMode)
+            {
+                _mainWindow.SwitchToMiniMode();
+            }
+            else
+            {
+                _mainWindow.Show();
+                _mainWindow.Activate();
+            }
         }
     }
 

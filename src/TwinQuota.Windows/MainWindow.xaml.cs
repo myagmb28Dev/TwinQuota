@@ -184,6 +184,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     internal bool ShouldShowOnStartup =>
         !_savedShowOnlyWhenAntigravityWindowIsOpen || _hasAntigravityWindow;
 
+    internal bool StartInMiniMode { get; private set; }
+
     public string ActiveModelName
     {
         get => _activeModelName;
@@ -319,7 +321,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             : RestoreBounds;
         if (bounds.Width >= MinWidth && bounds.Height >= MinHeight)
         {
-            _windowSizeStore.Save(bounds.Width, bounds.Height);
+            _windowSizeStore.Save(bounds.Width, bounds.Height, StartInMiniMode || IsMiniModeActive);
         }
     }
 
@@ -333,6 +335,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Width = Math.Max(MinWidth, size.Width);
         Height = Math.Max(MinHeight, size.Height);
+        StartInMiniMode = size.IsMiniMode;
     }
 
     private void ApplySnapshot(TwinQuotaSnapshot snapshot)
@@ -458,6 +461,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void SwitchToMiniMode()
     {
+        StartInMiniMode = true;
         SaveWindowSize();
         ResetPendingSettings();
         SidebarPopup.IsOpen = false;
@@ -471,6 +475,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     public void SwitchToNormalMode()
     {
+        StartInMiniMode = false;
         _miniWindow?.Hide();
         Show();
         if (WindowState == WindowState.Minimized)
@@ -480,6 +485,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Activate();
         SidebarSensorPopup.IsOpen = true;
+        SaveWindowSize();
     }
 
     private void MiniModeButton_Click(object sender, RoutedEventArgs e) => SwitchToMiniMode();
@@ -668,6 +674,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ShowForAntigravityWindow()
     {
+        if (StartInMiniMode || IsMiniModeActive)
+        {
+            SwitchToMiniMode();
+            _refreshTimer.Start();
+            _ = RefreshAsync();
+            return;
+        }
+
         if (!IsVisible)
         {
             Show();
