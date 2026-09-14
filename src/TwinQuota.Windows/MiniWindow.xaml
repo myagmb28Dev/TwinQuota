@@ -135,30 +135,36 @@
                         </StackPanel>
                     </Grid>
 
-                    <!-- Bottom Row: Window Name & Remaining % -->
-                    <Grid Margin="0,0,0,5">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Text="{Binding WindowName}"
-                                   FontSize="12"
-                                   Foreground="#8A96AE"
-                                   VerticalAlignment="Center" />
-                        <TextBlock Grid.Column="1"
-                                   Text="{Binding RemainingPercentText}"
-                                   FontSize="13"
-                                   FontWeight="Bold"
-                                   Foreground="#FFFFFF"
-                                   VerticalAlignment="Center" />
-                    </Grid>
-
-                    <!-- Progress Bar -->
-                    <ProgressBar Value="{Binding RemainingPercent, Mode=OneWay}"
-                                 Maximum="100"
-                                 Height="4"
-                                 Foreground="{Binding ProgressBrush}"
-                                 Style="{StaticResource MiniProgressBarStyle}" />
+                    <!-- Quotas List (5 hours, Weekly, etc.) -->
+                    <ItemsControl ItemsSource="{Binding QuotaItems}" Margin="0,2,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Margin="0,2,0,5" ToolTip="{Binding TooltipText}">
+                                    <Grid Margin="0,0,0,3">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding WindowName}"
+                                                   FontSize="11"
+                                                   Foreground="#8A96AE"
+                                                   VerticalAlignment="Center" />
+                                        <TextBlock Grid.Column="1"
+                                                   Text="{Binding RemainingPercentText}"
+                                                   FontSize="12"
+                                                   FontWeight="Bold"
+                                                   Foreground="#FFFFFF"
+                                                   VerticalAlignment="Center" />
+                                    </Grid>
+                                    <ProgressBar Value="{Binding RemainingPercent, Mode=OneWay}"
+                                                 Maximum="100"
+                                                 Height="4"
+                                                 Foreground="{Binding ProgressBrush}"
+                                                 Style="{StaticResource MiniProgressBarStyle}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
                 </StackPanel>
             </Border>
 

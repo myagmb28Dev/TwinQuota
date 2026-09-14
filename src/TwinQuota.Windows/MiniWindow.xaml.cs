@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -10,6 +11,13 @@ using MediaBrush = System.Windows.Media.Brush;
 
 namespace TwinQuota.Windows;
 
+public sealed record MiniQuotaItem(
+    string WindowName,
+    double RemainingPercent,
+    string RemainingPercentText,
+    MediaBrush ProgressBrush,
+    string TooltipText);
+
 public partial class MiniWindow : Window, INotifyPropertyChanged
 {
     private readonly MiniWindowStateStore _stateStore = new();
@@ -21,11 +29,9 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     private Visibility _contextVisibility = Visibility.Collapsed;
     private string _contextTooltipText = string.Empty;
     private MediaBrush _contextForegroundBrush = BrushFrom("#D5DCEB");
-    private string _windowName = "Weekly";
-    private double _remainingPercent = 100;
-    private string _remainingPercentText = "100%";
-    private MediaBrush _progressBrush = BrushFrom("#38D6A2");
     private Visibility _controlButtonsVisibility = Visibility.Collapsed;
+
+    public ObservableCollection<MiniQuotaItem> QuotaItems { get; } = [];
 
     public MiniWindow()
     {
@@ -97,30 +103,6 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _contextForegroundBrush, value);
     }
 
-    public string WindowName
-    {
-        get => _windowName;
-        private set => SetField(ref _windowName, value);
-    }
-
-    public double RemainingPercent
-    {
-        get => _remainingPercent;
-        set => SetField(ref _remainingPercent, value);
-    }
-
-    public string RemainingPercentText
-    {
-        get => _remainingPercentText;
-        private set => SetField(ref _remainingPercentText, value);
-    }
-
-    public MediaBrush ProgressBrush
-    {
-        get => _progressBrush;
-        private set => SetField(ref _progressBrush, value);
-    }
-
     public Visibility ControlButtonsVisibility
     {
         get => _controlButtonsVisibility;
@@ -150,34 +132,46 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
             .ThenBy(bucket => bucket.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var primaryBucket = selectedBuckets.FirstOrDefault();
-        DateTimeOffset? resetTime = primaryBucket?.ResetTime ?? activeModel?.ResetTime;
+        QuotaItems.Clear();
+        foreach (var bucket in selectedBuckets)
+        {
+            var remaining = Math.Clamp(bucket.RemainingFraction * 100, 0, 100);
+            var used = 100 - remaining;
+            var windowName = FormatWindowName(bucket);
+            var resetText = QuotaDisplayFormatter.FormatReset(bucket.ResetTime, now);
+            var tooltip = $"{windowName}: {remaining:0.#}% remaining (Used {used:0.#}%, {resetText})";
 
-        if (primaryBucket is not null)
-        {
-            WindowName = FormatWindowName(primaryBucket);
-            var remaining = Math.Clamp(primaryBucket.RemainingFraction * 100, 0, 100);
-            RemainingPercent = remaining;
-            RemainingPercentText = $"{(int)Math.Round(remaining)}%";
-            ProgressBrush = QuotaBrush(remaining);
+            QuotaItems.Add(new MiniQuotaItem(
+                windowName,
+                remaining,
+                $"{(int)Math.Round(remaining)}%",
+                QuotaBrush(remaining),
+                tooltip));
         }
-        else if (activeModel?.RemainingFraction is double fraction)
+
+        if (QuotaItems.Count == 0 && activeModel?.RemainingFraction is double fraction)
         {
-            WindowName = "Quota";
             var remaining = Math.Clamp(fraction * 100, 0, 100);
-            RemainingPercent = remaining;
-            RemainingPercentText = $"{(int)Math.Round(remaining)}%";
-            ProgressBrush = QuotaBrush(remaining);
+            QuotaItems.Add(new MiniQuotaItem(
+                "Quota",
+                remaining,
+                $"{(int)Math.Round(remaining)}%",
+                QuotaBrush(remaining),
+                $"{remaining:0.#}% remaining"));
         }
-        else
+        else if (QuotaItems.Count == 0)
         {
-            WindowName = "Quota";
-            RemainingPercent = 100;
-            RemainingPercentText = "100%";
-            ProgressBrush = BrushFrom("#38D6A2");
+            QuotaItems.Add(new MiniQuotaItem(
+                "Quota",
+                100,
+                "100%",
+                BrushFrom("#38D6A2"),
+                "100% remaining"));
         }
 
-        var formattedReset = QuotaDisplayFormatter.FormatMiniReset(resetTime, now);
+        var earliestReset = selectedBuckets.FirstOrDefault(b => b.ResetTime is not null)?.ResetTime
+            ?? activeModel?.ResetTime;
+        var formattedReset = QuotaDisplayFormatter.FormatMiniReset(earliestReset, now);
         if (!string.IsNullOrWhiteSpace(formattedReset))
         {
             ResetTimeText = formattedReset;
@@ -267,13 +261,13 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     private static int QuotaWindowOrder(QuotaBucket bucket)
     {
         var identity = $"{bucket.DisplayName} {bucket.Window}";
-        if (identity.Contains("week", StringComparison.OrdinalIgnoreCase))
+        if (identity.Contains("5h", StringComparison.OrdinalIgnoreCase) ||
+            identity.Contains("five hour", StringComparison.OrdinalIgnoreCase))
         {
             return 0;
         }
 
-        if (identity.Contains("5h", StringComparison.OrdinalIgnoreCase) ||
-            identity.Contains("five hour", StringComparison.OrdinalIgnoreCase))
+        if (identity.Contains("week", StringComparison.OrdinalIgnoreCase))
         {
             return 1;
         }
