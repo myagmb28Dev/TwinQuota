@@ -6,7 +6,6 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using TwinQuota.Core;
 using InputMouseButtonEventArgs = System.Windows.Input.MouseButtonEventArgs;
-using InputMouseEventArgs = System.Windows.Input.MouseEventArgs;
 using MediaBrush = System.Windows.Media.Brush;
 
 namespace TwinQuota.Windows;
@@ -27,11 +26,6 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     private string _remainingPercentText = "100%";
     private MediaBrush _progressBrush = BrushFrom("#38D6A2");
     private Visibility _controlButtonsVisibility = Visibility.Collapsed;
-
-    private bool _isContextHovered;
-    private double _contextUsedPercent;
-    private string _contextUsedK = string.Empty;
-    private string _contextMaxK = string.Empty;
 
     public MiniWindow()
     {
@@ -197,42 +191,15 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
 
         if (snapshot.ContextUsage is { } context)
         {
-            _contextUsedPercent = context.UsedPercent;
-            _contextUsedK = context.UsedK;
-            _contextMaxK = context.MaxK;
             ContextVisibility = Visibility.Visible;
+            DisplayContextText = $"{context.UsedPercent:0.#}%";
             ContextTooltipText = $"{context.HoverText}\n({(int)Math.Round(context.UsedPercent)}% used)";
             ContextForegroundBrush = ContextBrush(context.UsedPercent);
-            UpdateContextText();
         }
         else
         {
             ContextVisibility = Visibility.Collapsed;
         }
-    }
-
-    private void UpdateContextText()
-    {
-        if (_isContextHovered && !string.IsNullOrEmpty(_contextUsedK))
-        {
-            DisplayContextText = $"{_contextUsedK}/{_contextMaxK}";
-        }
-        else
-        {
-            DisplayContextText = $"{_contextUsedPercent:0.#}%";
-        }
-    }
-
-    private void ContextContainer_MouseEnter(object sender, InputMouseEventArgs e)
-    {
-        _isContextHovered = true;
-        UpdateContextText();
-    }
-
-    private void ContextContainer_MouseLeave(object sender, InputMouseEventArgs e)
-    {
-        _isContextHovered = false;
-        UpdateContextText();
     }
 
     private void Window_MouseLeftButtonDown(object sender, InputMouseButtonEventArgs e)

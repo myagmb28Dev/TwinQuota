@@ -84,8 +84,7 @@
                     BorderThickness="1"
                     CornerRadius="13"
                     Padding="14,10"
-                    Width="246"
-                    Cursor="SizeAll">
+                    Width="246">
                 <StackPanel>
                     <!-- Top Row: Model Name & Info (Reset time + Context usage) -->
                     <Grid Margin="0,0,0,7">
@@ -112,9 +111,6 @@
 
                             <Border x:Name="ContextContainer"
                                     Background="Transparent"
-                                    Cursor="Help"
-                                    MouseEnter="ContextContainer_MouseEnter"
-                                    MouseLeave="ContextContainer_MouseLeave"
                                     ToolTipService.InitialShowDelay="50"
                                     ToolTipService.ShowDuration="10000"
                                     Visibility="{Binding ContextVisibility}">
