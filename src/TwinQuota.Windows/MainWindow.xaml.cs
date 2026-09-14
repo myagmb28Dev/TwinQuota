@@ -456,6 +456,9 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 app.ExitApplication();
             }
         };
+        mini.Deactivated += (_, _) => Dispatcher.BeginInvoke(
+            HideIfFocusMovedOutsideAntigravity,
+            DispatcherPriority.Background);
         return mini;
     }
 
@@ -638,12 +641,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (isAntigravityForeground)
         {
-            if (IsMiniModeActive)
-            {
-                return;
-            }
+            var isCurrentVisible = (StartInMiniMode || IsMiniModeActive)
+                ? _miniWindow is { IsVisible: true }
+                : IsVisible;
 
-            if (!IsVisible)
+            if (!isCurrentVisible)
             {
                 ShowForAntigravityWindow();
             }
@@ -701,12 +703,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void HideIfFocusMovedOutsideAntigravity(bool isAntigravityForeground)
     {
-        if (IsMiniModeActive)
+        if (!_savedShowOnlyWhenAntigravityWindowIsOpen)
         {
             return;
         }
 
-        if (!_savedShowOnlyWhenAntigravityWindowIsOpen || !IsVisible || IsActive ||
+        var isWindowVisible = IsVisible || (_miniWindow is { IsVisible: true });
+        if (!isWindowVisible)
+        {
+            return;
+        }
+
+        var isAppActive = IsActive || (_miniWindow is { IsActive: true });
+        if (isAppActive ||
             _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess() ||
             isAntigravityForeground)
         {
@@ -718,7 +727,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void HideForFocusLoss()
     {
-        if (!IsVisible)
+        var isMiniVisible = _miniWindow is { IsVisible: true };
+        if (!IsVisible && !isMiniVisible)
         {
             return;
         }
@@ -728,8 +738,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ResetPendingSettings();
         SidebarPopup.IsOpen = false;
         SidebarSensorPopup.IsOpen = false;
-        WindowState = WindowState.Minimized;
-        Hide();
+        if (isMiniVisible)
+        {
+            _miniWindow?.Hide();
+        }
+
+        if (IsVisible)
+        {
+            WindowState = WindowState.Minimized;
+            Hide();
+        }
     }
 
     private IntPtr WindowMessageHook(
