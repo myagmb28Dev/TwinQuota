@@ -462,11 +462,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ResetPendingSettings();
         SidebarPopup.IsOpen = false;
         SidebarSensorPopup.IsOpen = false;
-        Hide();
         var mini = MiniWindow;
         mini.UpdateSnapshot(_lastSnapshot);
         mini.Show();
         mini.Activate();
+        Hide();
     }
 
     public void SwitchToNormalMode()
@@ -483,12 +483,6 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     }
 
     private void MiniModeButton_Click(object sender, RoutedEventArgs e) => SwitchToMiniMode();
-
-    private void MiniModeTab_Click(object sender, RoutedEventArgs e)
-    {
-        SidebarPopup.IsOpen = false;
-        SwitchToMiniMode();
-    }
 
     private void HomeTab_Click(object sender, RoutedEventArgs e)
     {
@@ -593,12 +587,12 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         SidebarPopup.VerticalOffset = 50 * scale;
 
         SidebarSensor.Width = 74 * scale;
-        SidebarSensor.Height = 228 * scale;
+        SidebarSensor.Height = 174 * scale;
         SidebarSensorPopup.HorizontalOffset = -62 * scale;
         SidebarSensorPopup.VerticalOffset = 50 * scale;
 
         SidebarHoverZone.Width = 12 * scale;
-        SidebarHoverZone.Height = 228 * scale;
+        SidebarHoverZone.Height = 174 * scale;
         SidebarHoverZone.Margin = new Thickness(0, 50 * scale, 0, 0);
     }
 

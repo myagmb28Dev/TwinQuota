@@ -158,7 +158,7 @@
                     </Grid>
 
                     <!-- Progress Bar -->
-                    <ProgressBar Value="{Binding RemainingPercent}"
+                    <ProgressBar Value="{Binding RemainingPercent, Mode=OneWay}"
                                  Maximum="100"
                                  Height="4"
                                  Foreground="{Binding ProgressBrush}"

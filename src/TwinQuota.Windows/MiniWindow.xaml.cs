@@ -112,7 +112,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     public double RemainingPercent
     {
         get => _remainingPercent;
-        private set => SetField(ref _remainingPercent, value);
+        set => SetField(ref _remainingPercent, value);
     }
 
     public string RemainingPercentText
