@@ -98,7 +98,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
         _refreshTimer.Start();
-        _windowDetectionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _windowDetectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _windowDetectionTimer.Tick += (_, _) => UpdateAntigravityWindowPresence();
         _windowDetectionTimer.Start();
         _sidebarCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
@@ -743,10 +743,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             return;
         }
 
-        var isAppActive = IsActive || (_miniWindow is { IsActive: true });
-        if (isAppActive ||
-            _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess() ||
-            isAntigravityForeground)
+        if (isAntigravityForeground ||
+            _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess())
         {
             return;
         }
