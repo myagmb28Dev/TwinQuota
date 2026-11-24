@@ -179,4 +179,44 @@ public sealed class StorageAndDetectionTests
         Assert.True(snapshot.IsLive);
         Assert.NotEmpty(snapshot.Models);
     }
+
+    [Fact]
+    public async Task RefreshFallsBackToObservedModelWithoutRunningCliWhenNoServerIsReachable()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var discovery = new LanguageServerEndpointDiscovery(
+                roamingAppData: directory,
+                userProfile: directory,
+                processReader: _ => Task.FromResult("[]"));
+            var detector = new AntigravityInstallationDetector(
+                localAppData: directory,
+                roamingAppData: directory,
+                userProfile: directory);
+            var cache = new SnapshotCache(Path.Combine(directory, "snapshot.json"));
+            var observationStore = new ActiveModelObservationStore(Path.Combine(directory, "active-model.json"));
+            await observationStore.SaveAsync(new ActiveModelObservation(
+                "gemini-4-hydrogen-medium",
+                DateTimeOffset.UtcNow));
+
+            var monitor = new TwinQuotaMonitor(
+                discovery,
+                detector,
+                cache: cache,
+                activeModelStore: observationStore);
+            var snapshot = await monitor.RefreshAsync(CancellationToken.None);
+
+            Assert.False(snapshot.IsLive);
+            Assert.Equal("gemini-4-hydrogen-medium", snapshot.ActiveModelId);
+            Assert.Single(snapshot.Models);
+            Assert.Equal("Gemini 4 Hydrogen (Medium)", snapshot.Models[0].DisplayName);
+            Assert.Equal("Google", snapshot.Models[0].Provider);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
 }
