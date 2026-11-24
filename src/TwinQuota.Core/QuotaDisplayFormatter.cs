@@ -57,4 +57,17 @@ public static class QuotaDisplayFormatter
 
         return $"↻ {Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
     }
+
+    public static string FormatMiniModelName(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        const string geminiPrefix = "Gemini ";
+        return displayName.StartsWith(geminiPrefix, StringComparison.OrdinalIgnoreCase)
+            ? displayName[geminiPrefix.Length..].TrimStart()
+            : displayName;
+    }
 }

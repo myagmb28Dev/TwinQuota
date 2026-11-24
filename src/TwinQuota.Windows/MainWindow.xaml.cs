@@ -487,7 +487,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         }
         else
         {
-            mini.SetLoadingState(_activeModelName);
+            mini.SetLoadingState(QuotaDisplayFormatter.FormatMiniModelName(_activeModelName));
             _ = RefreshAsync();
         }
 

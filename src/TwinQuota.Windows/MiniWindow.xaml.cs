@@ -156,7 +156,9 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
                 ? snapshot.Models[0]
                 : null;
 
-        ModelName = activeModel?.DisplayName ?? "No active model";
+        ModelName = activeModel is not null
+            ? QuotaDisplayFormatter.FormatMiniModelName(activeModel.DisplayName)
+            : "No active model";
 
         var selectedBuckets = ActiveQuotaSelector
             .Select(snapshot.QuotaGroups, activeModel)

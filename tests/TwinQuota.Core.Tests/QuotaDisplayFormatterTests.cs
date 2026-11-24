@@ -52,4 +52,13 @@ public sealed class QuotaDisplayFormatterTests
         Assert.Equal("↻ reset", QuotaDisplayFormatter.FormatMiniReset(Now.AddSeconds(-1), Now));
         Assert.Equal(string.Empty, QuotaDisplayFormatter.FormatMiniReset(null, Now));
     }
+
+    [Theory]
+    [InlineData("Gemini 4 Hydrogen (Medium)", "4 Hydrogen (Medium)")]
+    [InlineData("Gemini 3.8 Flash (High)", "3.8 Flash (High)")]
+    [InlineData("Claude Sonnet 4.6 (Thinking)", "Claude Sonnet 4.6 (Thinking)")]
+    public void FormatsMiniModelNameWithoutGeminiPrefix(string displayName, string expected)
+    {
+        Assert.Equal(expected, QuotaDisplayFormatter.FormatMiniModelName(displayName));
+    }
 }
