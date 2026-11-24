@@ -77,4 +77,39 @@ public sealed class LanguageServerEndpointDiscoveryTests
             Directory.Delete(directory, true);
         }
     }
+
+    [Fact]
+    public async Task DiscoversEndpointFromDaemonHubJsonWhenCsrfTokenIsOmittedFromCommandLine()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "TwinQuotaTests", Guid.NewGuid().ToString("N"));
+        var daemonDir = Path.Combine(directory, ".gemini", "antigravity", "daemon");
+        Directory.CreateDirectory(daemonDir);
+        try
+        {
+            await File.WriteAllTextAsync(
+                Path.Combine(daemonDir, "hub_50000.json"),
+                "{\"pid\":9999,\"httpPort\":50000,\"csrfToken\":\"stale-token\"}");
+            await File.WriteAllTextAsync(
+                Path.Combine(daemonDir, "hub_65074.json"),
+                "{\"pid\":15416,\"httpPort\":65074,\"csrfToken\":\"live-daemon-token\"}");
+
+            const string processJson = "[{\"ProcessId\":15416,\"CommandLine\":\"language_server.exe --standalone --subclient_type hub --app_data_dir antigravity --read_host_bridge_token_from_stdin\"}]";
+            var discovery = new LanguageServerEndpointDiscovery(
+                roamingAppData: directory,
+                userProfile: directory,
+                processReader: _ => Task.FromResult(processJson));
+
+            var endpoints = await discovery.DiscoverAsync(CancellationToken.None);
+
+            var endpoint = Assert.Single(endpoints);
+            Assert.Equal(AntigravitySurface.Desktop2, endpoint.Surface);
+            Assert.Equal(15416, endpoint.ProcessId);
+            Assert.Equal(65074, endpoint.HttpPort);
+            Assert.Equal("live-daemon-token", endpoint.CsrfToken);
+        }
+        finally
+        {
+            Directory.Delete(directory, true);
+        }
+    }
 }
