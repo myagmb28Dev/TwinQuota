@@ -30,6 +30,15 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     private string _contextTooltipText = string.Empty;
     private MediaBrush _contextForegroundBrush = BrushFrom("#D5DCEB");
     private Visibility _controlButtonsVisibility = Visibility.Collapsed;
+    private double _miniScale = MiniResizeCalculator.MaxScale;
+    private bool _isResizing;
+    private MiniResizeDirection _resizeDirection;
+    private System.Windows.Point _resizeStartScreenDip;
+    private double _resizeStartScale;
+    private double _resizeStartLeft;
+    private double _resizeStartTop;
+    private double _resizeBaseWidth;
+    private double _resizeBaseHeight;
 
     public ObservableCollection<MiniQuotaItem> QuotaItems { get; } = [];
 
@@ -48,7 +57,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
 
         LocationChanged += (_, _) =>
         {
-            if (WindowState == WindowState.Normal && IsVisible)
+            if (!_isResizing && WindowState == WindowState.Normal && IsVisible)
             {
                 _locationSaveTimer.Stop();
                 _locationSaveTimer.Start();
@@ -140,6 +149,12 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     {
         get => _controlButtonsVisibility;
         private set => SetField(ref _controlButtonsVisibility, value);
+    }
+
+    public double MiniScale
+    {
+        get => _miniScale;
+        private set => SetField(ref _miniScale, value);
     }
 
     public void UpdateSnapshot(TwinQuotaSnapshot? snapshot)
@@ -239,6 +254,98 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         }
     }
 
+    private void ResizeHandle_MouseLeftButtonDown(object sender, InputMouseButtonEventArgs e)
+    {
+        if (sender is not FrameworkElement element ||
+            element.Tag is not string tag ||
+            !Enum.TryParse<MiniResizeDirection>(tag, out var direction))
+        {
+            return;
+        }
+
+        e.Handled = true;
+
+        if (e.ClickCount == 2)
+        {
+            MiniScale = MiniResizeCalculator.MaxScale;
+            SaveLocation();
+            return;
+        }
+
+        _isResizing = true;
+        _resizeDirection = direction;
+        _resizeStartScreenDip = GetScreenPositionDip(e);
+        _resizeStartScale = MiniScale;
+        _resizeStartLeft = Left;
+        _resizeStartTop = Top;
+        _resizeBaseWidth = MainCard.ActualWidth > 0 ? MainCard.ActualWidth : 246;
+        _resizeBaseHeight = MainCard.ActualHeight > 0 ? MainCard.ActualHeight : 100;
+        element.CaptureMouse();
+    }
+
+    private void ResizeHandle_MouseMove(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        if (!_isResizing)
+        {
+            return;
+        }
+
+        var currentDip = GetScreenPositionDip(e);
+        var result = MiniResizeCalculator.Calculate(
+            _resizeDirection,
+            _resizeStartScale,
+            _resizeStartLeft,
+            _resizeStartTop,
+            _resizeBaseWidth,
+            _resizeBaseHeight,
+            currentDip.X - _resizeStartScreenDip.X,
+            currentDip.Y - _resizeStartScreenDip.Y);
+
+        MiniScale = result.Scale;
+        Left = result.Left;
+        Top = result.Top;
+    }
+
+    private void ResizeHandle_MouseLeftButtonUp(object sender, InputMouseButtonEventArgs e)
+    {
+        if (!_isResizing)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        FinishResize(sender as UIElement);
+    }
+
+    private void ResizeHandle_LostMouseCapture(object sender, System.Windows.Input.MouseEventArgs e)
+    {
+        FinishResize(null);
+    }
+
+    private void FinishResize(UIElement? element)
+    {
+        if (!_isResizing)
+        {
+            return;
+        }
+
+        _isResizing = false;
+        if (element is { IsMouseCaptured: true })
+        {
+            element.ReleaseMouseCapture();
+        }
+
+        _locationSaveTimer.Stop();
+        SaveLocation();
+    }
+
+    private System.Windows.Point GetScreenPositionDip(System.Windows.Input.MouseEventArgs e)
+    {
+        var screenPx = PointToScreen(e.GetPosition(this));
+        var dpi = VisualTreeHelper.GetDpi(this);
+        return new System.Windows.Point(screenPx.X / dpi.DpiScaleX, screenPx.Y / dpi.DpiScaleY);
+    }
+
     private void Window_MouseRightButtonUp(object sender, InputMouseButtonEventArgs e)
     {
         ControlButtonsVisibility = ControlButtonsVisibility == Visibility.Visible
@@ -262,10 +369,13 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         var saved = _stateStore.Load();
         if (saved is null)
         {
+            MiniScale = MiniResizeCalculator.MaxScale;
             Left = SystemParameters.WorkArea.Right - 320;
             Top = SystemParameters.WorkArea.Bottom - 120;
             return;
         }
+
+        MiniScale = saved.Scale;
 
         var virtualLeft = SystemParameters.VirtualScreenLeft;
         var virtualTop = SystemParameters.VirtualScreenTop;
@@ -289,7 +399,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     {
         if (WindowState == WindowState.Normal)
         {
-            _stateStore.Save(Left, Top);
+            _stateStore.Save(Left, Top, MiniScale);
         }
     }
 

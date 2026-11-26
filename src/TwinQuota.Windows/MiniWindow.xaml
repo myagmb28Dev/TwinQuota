@@ -77,15 +77,18 @@
             <DropShadowEffect BlurRadius="14" ShadowDepth="2" Opacity="0.4" Color="#000000" />
         </Grid.Effect>
         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-            <!-- Main Mini Card -->
-            <Border x:Name="MainCard"
-                    Background="#111624"
-                    BorderBrush="#232D48"
-                    BorderThickness="1"
-                    CornerRadius="13"
-                    Padding="14,10"
-                    Width="246">
-                <StackPanel>
+            <Grid x:Name="CardHost">
+                <Border x:Name="MainCard"
+                        Background="#111624"
+                        BorderBrush="#232D48"
+                        BorderThickness="1"
+                        CornerRadius="13"
+                        Padding="14,10"
+                        Width="246">
+                    <Border.LayoutTransform>
+                        <ScaleTransform ScaleX="{Binding MiniScale}" ScaleY="{Binding MiniScale}" />
+                    </Border.LayoutTransform>
+                    <StackPanel>
                     <!-- Top Row: Model Name & Info (Reset time + Context usage) -->
                     <Grid Margin="0,0,0,7">
                         <Grid.ColumnDefinitions>
@@ -166,7 +169,73 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </StackPanel>
-            </Border>
+                </Border>
+
+                <Border Background="Transparent"
+                        HorizontalAlignment="Left"
+                        Width="7"
+                        Margin="0,8,0,8"
+                        Cursor="SizeWE"
+                        Tag="Left"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+                <Border Background="Transparent"
+                        HorizontalAlignment="Right"
+                        Width="7"
+                        Margin="0,8,0,8"
+                        Cursor="SizeWE"
+                        Tag="Right"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+                <Border Background="Transparent"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Width="10"
+                        Height="10"
+                        Cursor="SizeNWSE"
+                        Tag="TopLeft"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+                <Border Background="Transparent"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Width="10"
+                        Height="10"
+                        Cursor="SizeNESW"
+                        Tag="TopRight"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+                <Border Background="Transparent"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Bottom"
+                        Width="10"
+                        Height="10"
+                        Cursor="SizeNESW"
+                        Tag="BottomLeft"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+                <Border Background="Transparent"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Width="10"
+                        Height="10"
+                        Cursor="SizeNWSE"
+                        Tag="BottomRight"
+                        MouseLeftButtonDown="ResizeHandle_MouseLeftButtonDown"
+                        MouseMove="ResizeHandle_MouseMove"
+                        MouseLeftButtonUp="ResizeHandle_MouseLeftButtonUp"
+                        LostMouseCapture="ResizeHandle_LostMouseCapture" />
+            </Grid>
 
             <!-- Right Buttons Panel (shown on right-click) -->
             <StackPanel x:Name="ControlButtonsPanel"
