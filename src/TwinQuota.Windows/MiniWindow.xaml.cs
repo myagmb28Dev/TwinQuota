@@ -30,15 +30,12 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     private string _contextTooltipText = string.Empty;
     private MediaBrush _contextForegroundBrush = BrushFrom("#D5DCEB");
     private Visibility _controlButtonsVisibility = Visibility.Collapsed;
-    private double _miniScale = MiniResizeCalculator.MaxScale;
+    private double _cardWidth = MiniResizeCalculator.DefaultWidth;
     private bool _isResizing;
     private MiniResizeDirection _resizeDirection;
     private System.Windows.Point _resizeStartScreenDip;
-    private double _resizeStartScale;
+    private double _resizeStartWidth;
     private double _resizeStartLeft;
-    private double _resizeStartTop;
-    private double _resizeBaseWidth;
-    private double _resizeBaseHeight;
 
     public ObservableCollection<MiniQuotaItem> QuotaItems { get; } = [];
 
@@ -151,10 +148,10 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         private set => SetField(ref _controlButtonsVisibility, value);
     }
 
-    public double MiniScale
+    public double CardWidth
     {
-        get => _miniScale;
-        private set => SetField(ref _miniScale, value);
+        get => _cardWidth;
+        private set => SetField(ref _cardWidth, value);
     }
 
     public void UpdateSnapshot(TwinQuotaSnapshot? snapshot)
@@ -267,7 +264,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
 
         if (e.ClickCount == 2)
         {
-            MiniScale = MiniResizeCalculator.MaxScale;
+            CardWidth = MiniResizeCalculator.DefaultWidth;
             SaveLocation();
             return;
         }
@@ -275,11 +272,8 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         _isResizing = true;
         _resizeDirection = direction;
         _resizeStartScreenDip = GetScreenPositionDip(e);
-        _resizeStartScale = MiniScale;
+        _resizeStartWidth = CardWidth;
         _resizeStartLeft = Left;
-        _resizeStartTop = Top;
-        _resizeBaseWidth = MainCard.ActualWidth > 0 ? MainCard.ActualWidth : 246;
-        _resizeBaseHeight = MainCard.ActualHeight > 0 ? MainCard.ActualHeight : 100;
         element.CaptureMouse();
     }
 
@@ -293,17 +287,12 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         var currentDip = GetScreenPositionDip(e);
         var result = MiniResizeCalculator.Calculate(
             _resizeDirection,
-            _resizeStartScale,
+            _resizeStartWidth,
             _resizeStartLeft,
-            _resizeStartTop,
-            _resizeBaseWidth,
-            _resizeBaseHeight,
-            currentDip.X - _resizeStartScreenDip.X,
-            currentDip.Y - _resizeStartScreenDip.Y);
+            currentDip.X - _resizeStartScreenDip.X);
 
-        MiniScale = result.Scale;
+        CardWidth = result.Width;
         Left = result.Left;
-        Top = result.Top;
     }
 
     private void ResizeHandle_MouseLeftButtonUp(object sender, InputMouseButtonEventArgs e)
@@ -369,13 +358,13 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
         var saved = _stateStore.Load();
         if (saved is null)
         {
-            MiniScale = MiniResizeCalculator.MaxScale;
+            CardWidth = MiniResizeCalculator.DefaultWidth;
             Left = SystemParameters.WorkArea.Right - 320;
             Top = SystemParameters.WorkArea.Bottom - 120;
             return;
         }
 
-        MiniScale = saved.Scale;
+        CardWidth = saved.Width;
 
         var virtualLeft = SystemParameters.VirtualScreenLeft;
         var virtualTop = SystemParameters.VirtualScreenTop;
@@ -399,7 +388,7 @@ public partial class MiniWindow : Window, INotifyPropertyChanged
     {
         if (WindowState == WindowState.Normal)
         {
-            _stateStore.Save(Left, Top, MiniScale);
+            _stateStore.Save(Left, Top, CardWidth);
         }
     }
 

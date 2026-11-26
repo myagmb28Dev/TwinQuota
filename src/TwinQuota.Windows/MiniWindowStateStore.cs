@@ -1,11 +1,10 @@
 using System.IO;
 using System.Text.Json;
-
 using TwinQuota.Core;
 
 namespace TwinQuota.Windows;
 
-internal sealed record SavedMiniWindowState(double Left, double Top, double Scale = 1.0);
+internal sealed record SavedMiniWindowState(double Left, double Top, double Width = MiniResizeCalculator.DefaultWidth);
 
 internal sealed class MiniWindowStateStore
 {
@@ -31,7 +30,7 @@ internal sealed class MiniWindowStateStore
             var loaded = JsonSerializer.Deserialize<SavedMiniWindowState>(File.ReadAllText(_path));
             return loaded is null
                 ? null
-                : loaded with { Scale = MiniResizeCalculator.ClampScale(loaded.Scale) };
+                : loaded with { Width = MiniResizeCalculator.ClampWidth(loaded.Width) };
         }
         catch (IOException)
         {
@@ -47,13 +46,13 @@ internal sealed class MiniWindowStateStore
         }
     }
 
-    public void Save(double left, double top, double scale = 1.0)
+    public void Save(double left, double top, double width = MiniResizeCalculator.DefaultWidth)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            var clampedScale = MiniResizeCalculator.ClampScale(scale);
-            File.WriteAllText(_path, JsonSerializer.Serialize(new SavedMiniWindowState(left, top, clampedScale)));
+            var clampedWidth = MiniResizeCalculator.ClampWidth(width);
+            File.WriteAllText(_path, JsonSerializer.Serialize(new SavedMiniWindowState(left, top, clampedWidth)));
         }
         catch (IOException)
         {

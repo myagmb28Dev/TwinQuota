@@ -84,10 +84,7 @@
                         BorderThickness="1"
                         CornerRadius="13"
                         Padding="14,10"
-                        Width="246">
-                    <Border.LayoutTransform>
-                        <ScaleTransform ScaleX="{Binding MiniScale}" ScaleY="{Binding MiniScale}" />
-                    </Border.LayoutTransform>
+                        Width="{Binding CardWidth}">
                     <StackPanel>
                     <!-- Top Row: Model Name & Info (Reset time + Context usage) -->
                     <Grid Margin="0,0,0,7">
@@ -151,6 +148,7 @@
                                         <TextBlock Text="{Binding WindowName}"
                                                    FontSize="11"
                                                    Foreground="#8A96AE"
+                                                   TextTrimming="CharacterEllipsis"
                                                    VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="1"
                                                    Text="{Binding RemainingPercentText}"
