@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace TwinQuota.Windows;
 
-internal sealed record SavedWindowSize(double Width, double Height);
+internal sealed record SavedWindowSize(double Width, double Height, bool IsMiniMode = false);
 
 internal sealed class WindowSizeStore
 {
@@ -39,12 +39,12 @@ internal sealed class WindowSizeStore
         }
     }
 
-    public void Save(double width, double height)
+    public void Save(double width, double height, bool isMiniMode = false)
     {
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
-            File.WriteAllText(_path, JsonSerializer.Serialize(new SavedWindowSize(width, height)));
+            File.WriteAllText(_path, JsonSerializer.Serialize(new SavedWindowSize(width, height, isMiniMode)));
         }
         catch (IOException)
         {

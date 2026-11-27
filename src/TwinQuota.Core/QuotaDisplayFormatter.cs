@@ -31,4 +31,43 @@ public static class QuotaDisplayFormatter
 
         return $"resets in {Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
     }
+
+    public static string FormatMiniReset(DateTimeOffset? resetTime, DateTimeOffset now)
+    {
+        if (resetTime is null)
+        {
+            return string.Empty;
+        }
+
+        var remaining = resetTime.Value - now;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return "↻ reset";
+        }
+
+        if (remaining.TotalDays >= 1)
+        {
+            return $"↻ {remaining.TotalDays:0.#}d";
+        }
+
+        if (remaining.TotalHours >= 1)
+        {
+            return $"↻ {remaining.TotalHours:0.#}h";
+        }
+
+        return $"↻ {Math.Max(1, (int)Math.Ceiling(remaining.TotalMinutes))}m";
+    }
+
+    public static string FormatMiniModelName(string displayName)
+    {
+        if (string.IsNullOrWhiteSpace(displayName))
+        {
+            return displayName;
+        }
+
+        const string geminiPrefix = "Gemini ";
+        return displayName.StartsWith(geminiPrefix, StringComparison.OrdinalIgnoreCase)
+            ? displayName[geminiPrefix.Length..].TrimStart()
+            : displayName;
+    }
 }

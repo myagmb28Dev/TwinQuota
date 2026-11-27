@@ -7,7 +7,6 @@ public sealed class TwinQuotaMonitor
     private readonly LanguageServerEndpointDiscovery _endpointDiscovery;
     private readonly AntigravityInstallationDetector _installationDetector;
     private readonly AntigravityRpcClient _rpcClient;
-    private readonly AntigravityCliClient _cliClient;
     private readonly SnapshotCache _cache;
     private readonly ActiveModelObservationStore _activeModelStore;
 
@@ -22,7 +21,6 @@ public sealed class TwinQuotaMonitor
         _endpointDiscovery = endpointDiscovery ?? new LanguageServerEndpointDiscovery();
         _installationDetector = installationDetector ?? new AntigravityInstallationDetector();
         _rpcClient = rpcClient ?? new AntigravityRpcClient();
-        _cliClient = cliClient ?? new AntigravityCliClient();
         _cache = cache ?? new SnapshotCache();
         _activeModelStore = activeModelStore ?? new ActiveModelObservationStore();
     }
@@ -86,30 +84,6 @@ public sealed class TwinQuotaMonitor
             }
         }
 
-        var cli = products.First(product => product.Surface == AntigravitySurface.Cli);
-        if (cli.Installed && cli.ExecutablePath is not null)
-        {
-            try
-            {
-                var cliModels = await _cliClient.ReadModelsAsync(cli.ExecutablePath, cancellationToken).ConfigureAwait(false);
-                if (cliModels.Count > 0)
-                {
-                    return new TwinQuotaSnapshot(
-                        DateTimeOffset.Now,
-                        true,
-                        "Antigravity CLI",
-                        products,
-                        [],
-                        cliModels,
-                        null);
-                }
-            }
-            catch (Exception exception) when (exception is IOException or TaskCanceledException or InvalidOperationException)
-            {
-                failures.Add($"Antigravity CLI: {exception.Message}");
-            }
-        }
-
         var cached = await _cache.LoadAsync(cancellationToken).ConfigureAwait(false);
         if (cached is not null)
         {
@@ -121,10 +95,54 @@ public sealed class TwinQuotaMonitor
             };
         }
 
+        var fallbackObservation = await _activeModelStore.LoadAsync(cancellationToken).ConfigureAwait(false);
+        var fallbackModels = fallbackObservation is { ModelId.Length: > 0 }
+            ? new[] { CreateObservedFallbackModel(fallbackObservation.ModelId) }
+            : Array.Empty<ModelAvailability>();
+        var fallbackContext = fallbackObservation is { ModelId.Length: > 0 }
+            ? ContextUsageCalculator.Calculate(fallbackObservation.ConversationId, fallbackObservation.ModelId)
+            : null;
         var message = failures.Count > 0
             ? "Antigravity was detected, but live data could not be read. " + string.Join(" | ", failures)
             : "Start Antigravity 2.0, Antigravity IDE, or Antigravity CLI, then refresh.";
-        return new TwinQuotaSnapshot(DateTimeOffset.Now, false, null, products, [], [], message);
+        return new TwinQuotaSnapshot(DateTimeOffset.Now, false, null, products, [], fallbackModels, message)
+        {
+            ActiveModelId = fallbackObservation?.ModelId,
+            ContextUsage = fallbackContext
+        };
+    }
+
+    private static ModelAvailability CreateObservedFallbackModel(string modelId)
+    {
+        var provider = modelId.Contains("claude", StringComparison.OrdinalIgnoreCase)
+            ? "Anthropic"
+            : modelId.Contains("gpt", StringComparison.OrdinalIgnoreCase)
+                ? "OpenAI"
+                : modelId.Contains("gemini", StringComparison.OrdinalIgnoreCase)
+                    ? "Google"
+                    : "Other";
+        var displayName = FormatObservedModelDisplayName(modelId);
+        return new ModelAvailability(modelId, displayName, provider, null, null);
+    }
+
+    private static string FormatObservedModelDisplayName(string modelId)
+    {
+        var tokens = modelId.Split(['-', '_'], StringSplitOptions.RemoveEmptyEntries);
+        if (tokens.Length == 0)
+        {
+            return modelId;
+        }
+
+        var parts = tokens.Select(token =>
+            token.Equals("gpt", StringComparison.OrdinalIgnoreCase)
+                ? "GPT"
+                : char.ToUpperInvariant(token[0]) + token[1..].ToLowerInvariant()).ToArray();
+        if (parts.Length >= 2 && parts[^1] is "Low" or "Medium" or "High" or "Thinking")
+        {
+            return $"{string.Join(' ', parts[..^1])} ({parts[^1]})";
+        }
+
+        return string.Join(' ', parts);
     }
 
     private static string SurfaceName(AntigravitySurface surface) => surface switch

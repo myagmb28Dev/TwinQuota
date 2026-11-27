@@ -44,6 +44,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     private readonly DispatcherTimer _sizeSaveTimer;
     private readonly DispatcherTimer _sidebarCloseTimer;
     private readonly WindowSizeStore _windowSizeStore = new();
+    private MiniWindow? _miniWindow;
     private HwndSource? _windowSource;
     private bool _refreshing;
     private bool _hasAntigravityWindow;
@@ -96,7 +97,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         _refreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(30) };
         _refreshTimer.Tick += async (_, _) => await RefreshAsync();
-        _windowDetectionTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _refreshTimer.Start();
+        _windowDetectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(400) };
         _windowDetectionTimer.Tick += (_, _) => UpdateAntigravityWindowPresence();
         _windowDetectionTimer.Start();
         _sidebarCloseTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(140) };
@@ -130,9 +132,13 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             UpdateSidebarScale();
             SidebarSensorPopup.IsOpen = true;
-            _refreshTimer.Start();
-            await RefreshAsync();
+            if (_lastSnapshot is null)
+            {
+                await RefreshAsync();
+            }
         };
+
+        _ = RefreshAsync();
     }
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -146,6 +152,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
     {
         _refreshTimer.Stop();
         _windowDetectionTimer.Stop();
+        _miniWindow?.Close();
+        _miniWindow = null;
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
         base.OnClosed(e);
@@ -180,6 +188,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     internal bool ShouldShowOnStartup =>
         !_savedShowOnlyWhenAntigravityWindowIsOpen || _hasAntigravityWindow;
+
+    internal bool StartInMiniMode { get; private set; }
 
     public string ActiveModelName
     {
@@ -302,6 +312,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         {
             ActiveModelName = "Unable to refresh";
             StatusTextChanged?.Invoke(this, "TwinQuota · Unable to refresh");
+            _miniWindow?.SetErrorState("Unable to refresh");
         }
         finally
         {
@@ -316,7 +327,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             : RestoreBounds;
         if (bounds.Width >= MinWidth && bounds.Height >= MinHeight)
         {
-            _windowSizeStore.Save(bounds.Width, bounds.Height);
+            _windowSizeStore.Save(bounds.Width, bounds.Height, StartInMiniMode || IsMiniModeActive);
         }
     }
 
@@ -330,6 +341,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         Width = Math.Max(MinWidth, size.Width);
         Height = Math.Max(MinHeight, size.Height);
+        StartInMiniMode = size.IsMiniMode;
     }
 
     private void ApplySnapshot(TwinQuotaSnapshot snapshot)
@@ -386,6 +398,7 @@ public partial class MainWindow : Window, INotifyPropertyChanged
                 ? $"TwinQuota · {activeModel.DisplayName}"
                 : $"TwinQuota · {activeModel.DisplayName} {firstQuota.RemainingText}";
         StatusTextChanged?.Invoke(this, trayStatus);
+        _miniWindow?.UpdateSnapshot(snapshot);
     }
 
     private static void PopulateQuotas(
@@ -433,6 +446,81 @@ public partial class MainWindow : Window, INotifyPropertyChanged
             $"Used {usedPercent:0.#}%, {QuotaDisplayFormatter.FormatReset(bucket.ResetTime, now)}",
             QuotaBrush(remainingPercent)));
     }
+
+    public MiniWindow MiniWindow => _miniWindow ??= CreateMiniWindow();
+
+    public bool IsMiniModeActive => _miniWindow is { IsVisible: true };
+
+    private MiniWindow CreateMiniWindow()
+    {
+        var mini = new MiniWindow();
+        mini.RestoreNormalModeRequested += (_, _) => SwitchToNormalMode();
+        mini.ExitRequested += (_, _) =>
+        {
+            if (System.Windows.Application.Current is App app)
+            {
+                app.ExitApplication();
+            }
+        };
+        mini.Deactivated += (_, _) => Dispatcher.BeginInvoke(
+            HideIfFocusMovedOutsideAntigravity,
+            DispatcherPriority.Background);
+        return mini;
+    }
+
+    public void SwitchToMiniMode()
+    {
+        StartInMiniMode = true;
+        SaveWindowSize();
+        ResetPendingSettings();
+        SidebarPopup.IsOpen = false;
+        SidebarSensorPopup.IsOpen = false;
+        if (!_refreshTimer.IsEnabled)
+        {
+            _refreshTimer.Start();
+        }
+
+        var mini = MiniWindow;
+        if (_lastSnapshot is not null)
+        {
+            mini.UpdateSnapshot(_lastSnapshot);
+        }
+        else
+        {
+            mini.SetLoadingState(QuotaDisplayFormatter.FormatMiniModelName(_activeModelName));
+            _ = RefreshAsync();
+        }
+
+        mini.Show();
+        mini.Activate();
+        Hide();
+    }
+
+    public void SwitchToNormalMode()
+    {
+        StartInMiniMode = false;
+        _miniWindow?.Hide();
+        Show();
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = WindowState.Normal;
+        }
+
+        Activate();
+        SidebarSensorPopup.IsOpen = true;
+        SaveWindowSize();
+        if (!_refreshTimer.IsEnabled)
+        {
+            _refreshTimer.Start();
+        }
+
+        if (_lastSnapshot is null)
+        {
+            _ = RefreshAsync();
+        }
+    }
+
+    private void MiniModeButton_Click(object sender, RoutedEventArgs e) => SwitchToMiniMode();
 
     private void HomeTab_Click(object sender, RoutedEventArgs e)
     {
@@ -582,7 +670,11 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
         if (isAntigravityForeground)
         {
-            if (!IsVisible)
+            var isCurrentVisible = (StartInMiniMode || IsMiniModeActive)
+                ? _miniWindow is { IsVisible: true }
+                : IsVisible;
+
+            if (!isCurrentVisible)
             {
                 ShowForAntigravityWindow();
             }
@@ -613,6 +705,14 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void ShowForAntigravityWindow()
     {
+        if (StartInMiniMode || IsMiniModeActive)
+        {
+            SwitchToMiniMode();
+            _refreshTimer.Start();
+            _ = RefreshAsync();
+            return;
+        }
+
         if (!IsVisible)
         {
             Show();
@@ -632,9 +732,19 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void HideIfFocusMovedOutsideAntigravity(bool isAntigravityForeground)
     {
-        if (!_savedShowOnlyWhenAntigravityWindowIsOpen || !IsVisible || IsActive ||
-            _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess() ||
-            isAntigravityForeground)
+        if (!_savedShowOnlyWhenAntigravityWindowIsOpen)
+        {
+            return;
+        }
+
+        var isWindowVisible = IsVisible || (_miniWindow is { IsVisible: true });
+        if (!isWindowVisible)
+        {
+            return;
+        }
+
+        if (isAntigravityForeground ||
+            _antigravityWindowDetector.IsForegroundWindowOwnedByCurrentProcess())
         {
             return;
         }
@@ -644,7 +754,8 @@ public partial class MainWindow : Window, INotifyPropertyChanged
 
     private void HideForFocusLoss()
     {
-        if (!IsVisible)
+        var isMiniVisible = _miniWindow is { IsVisible: true };
+        if (!IsVisible && !isMiniVisible)
         {
             return;
         }
@@ -654,8 +765,16 @@ public partial class MainWindow : Window, INotifyPropertyChanged
         ResetPendingSettings();
         SidebarPopup.IsOpen = false;
         SidebarSensorPopup.IsOpen = false;
-        WindowState = WindowState.Minimized;
-        Hide();
+        if (isMiniVisible)
+        {
+            _miniWindow?.Hide();
+        }
+
+        if (IsVisible)
+        {
+            WindowState = WindowState.Minimized;
+            Hide();
+        }
     }
 
     private IntPtr WindowMessageHook(

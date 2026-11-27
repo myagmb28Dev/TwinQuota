@@ -37,9 +37,21 @@ public sealed partial class LanguageServerEndpointDiscovery
         }
 
         var processes = ParseProcessList(processJson);
+        var daemonEndpoints = ReadDaemonEndpointsByPid();
         var endpoints = new List<LanguageServerEndpoint>();
         foreach (var process in processes)
         {
+            if (daemonEndpoints.TryGetValue(process.ProcessId, out var daemonEndpoint))
+            {
+                var daemonSurface = InferSurface(process.CommandLine, HubFlagRegex().IsMatch(process.CommandLine));
+                endpoints.Add(new LanguageServerEndpoint(
+                    daemonSurface,
+                    process.ProcessId,
+                    daemonEndpoint.HttpPort,
+                    daemonEndpoint.CsrfToken));
+                continue;
+            }
+
             if (!TryParseCommandLine(process.CommandLine, out var surface, out var csrfToken, out var explicitPort))
             {
                 continue;
@@ -151,6 +163,12 @@ public sealed partial class LanguageServerEndpointDiscovery
             return false;
         }
 
+        surface = InferSurface(commandLine, isHub);
+        return true;
+    }
+
+    private static AntigravitySurface InferSurface(string commandLine, bool isHub)
+    {
         var appData = AppDataRegex().Match(commandLine);
         var appDataValue = appData.Success
             ? (appData.Groups[1].Success ? appData.Groups[1].Value : appData.Groups[2].Value)
@@ -163,22 +181,71 @@ public sealed partial class LanguageServerEndpointDiscovery
 
         if (isHub || identity.Contains("vscode", StringComparison.Ordinal) || identity.Contains("vs-code", StringComparison.Ordinal))
         {
-            surface = AntigravitySurface.VsCode;
-        }
-        else if (identity.Contains("ide", StringComparison.Ordinal))
-        {
-            surface = AntigravitySurface.Ide;
-        }
-        else if (identity.Contains("cli", StringComparison.Ordinal) || identity.Contains("agy", StringComparison.Ordinal))
-        {
-            surface = AntigravitySurface.Cli;
-        }
-        else
-        {
-            surface = AntigravitySurface.Desktop2;
+            return AntigravitySurface.VsCode;
         }
 
-        return true;
+        if (identity.Contains("ide", StringComparison.Ordinal))
+        {
+            return AntigravitySurface.Ide;
+        }
+
+        if (identity.Contains("cli", StringComparison.Ordinal) || identity.Contains("agy", StringComparison.Ordinal))
+        {
+            return AntigravitySurface.Cli;
+        }
+
+        return AntigravitySurface.Desktop2;
+    }
+
+    private Dictionary<int, (int HttpPort, string CsrfToken)> ReadDaemonEndpointsByPid()
+    {
+        var result = new Dictionary<int, (int HttpPort, string CsrfToken)>();
+        var daemonDir = Path.Combine(_userProfile, ".gemini", "antigravity", "daemon");
+        if (!Directory.Exists(daemonDir))
+        {
+            return result;
+        }
+
+        IEnumerable<FileInfo> files;
+        try
+        {
+            files = new DirectoryInfo(daemonDir)
+                .EnumerateFiles("hub_*.json")
+                .OrderByDescending(file => file.LastWriteTimeUtc);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            return result;
+        }
+
+        foreach (var file in files)
+        {
+            try
+            {
+                using var stream = new FileStream(file.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var document = JsonDocument.Parse(stream);
+                var root = document.RootElement;
+                if (root.ValueKind != JsonValueKind.Object
+                    || !root.TryGetProperty("pid", out var pidElement)
+                    || !pidElement.TryGetInt32(out var pid)
+                    || pid <= 0
+                    || !root.TryGetProperty("httpPort", out var portElement)
+                    || !portElement.TryGetInt32(out var httpPort)
+                    || httpPort is <= 0 or > 65535
+                    || !root.TryGetProperty("csrfToken", out var tokenElement)
+                    || tokenElement.GetString() is not { Length: > 0 } csrfToken)
+                {
+                    continue;
+                }
+
+                result.TryAdd(pid, (httpPort, csrfToken));
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+            {
+            }
+        }
+
+        return result;
     }
 
     public static bool TryExtractCsrfTokenFromHtml(string html, out string csrfToken)
